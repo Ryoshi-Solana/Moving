@@ -1,0 +1,137 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, 'JetBrains Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  color-scheme: dark;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-void text-ink antialiased;
+    font-family: var(--font-sans);
+    font-feature-settings: 'ss01', 'cv01';
+  }
+
+  /* Numbers are the subject matter here: monospaced and tabular everywhere, so
+     columns align and digits don't jitter between refreshes. */
+  .tnum {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'zero' 1;
+  }
+
+  ::selection {
+    background: rgba(0, 229, 160, 0.26);
+  }
+
+  :focus-visible {
+    outline: 1.5px solid #00e5a0;
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+}
+
+@layer components {
+  /* Surfaces are near-square on purpose — soft 12px corners read as generic
+     SaaS; 3px reads as an instrument. A faint top-lit gradient (panel2 →
+     panel) is the "layered, not flat" cue instead of a translucent blur, which
+     keeps this out of glassmorphism territory. */
+  .panel {
+    @apply rounded-[3px] border border-edge;
+    background-image: linear-gradient(165deg, #17232f 0%, #121d29 100%);
+  }
+
+  /* Faint coordinate grid, faded out toward the edges. One decorative layer
+     for the whole page. Extended further down than a typical hero-only fade
+     so the texture still reads where the analysis result appears, instead of
+     stopping dead at the fold. */
+  .backdrop-grid {
+    position: fixed;
+    inset: 0;
+    z-index: -2;
+    pointer-events: none;
+    background-image: linear-gradient(rgba(110, 168, 178, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(110, 168, 178, 0.05) 1px, transparent 1px);
+    background-size: 56px 56px;
+    mask-image: radial-gradient(ellipse 88% 68% at 50% 0%, #000 15%, transparent 82%);
+    -webkit-mask-image: radial-gradient(ellipse 88% 68% at 50% 0%, #000 15%, transparent 82%);
+  }
+
+  /* Two light sources, both restrained: a mint wash behind the hero, and a
+     much fainter teal wash lower down so the analysis section reads as part
+     of the same atmosphere rather than a separate, flatter panel of page. */
+  .backdrop-glow {
+    position: fixed;
+    inset: 0;
+    z-index: -3;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse 60% 46% at 50% -6%, rgba(0, 229, 160, 0.12), transparent 72%),
+      radial-gradient(ellipse 70% 40% at 50% 42%, rgba(64, 154, 160, 0.06), transparent 76%);
+  }
+
+  .backdrop-noise {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0.03;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* The search field is the product, so it stays fully opaque rather than
+     picking up the page's translucent treatment — crisp, not washed out.
+     Focus gets a hairline ring plus a low, wide glow: visible, nowhere near
+     neon. */
+  .field {
+    @apply rounded-[3px] border border-edge bg-panel transition-[border-color,box-shadow] duration-200;
+  }
+
+  .field:hover {
+    border-color: rgba(110, 168, 178, 0.32);
+  }
+
+  .field:focus-within {
+    border-color: rgba(0, 229, 160, 0.55);
+    box-shadow:
+      0 0 0 1px rgba(0, 229, 160, 0.16),
+      0 12px 44px -20px rgba(0, 229, 160, 0.5);
+  }
+
+  @keyframes sweep {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(320%);
+    }
+  }
+
+  /* Shimmer used only during the analysis wait, where it signals real work. */
+  .skeleton-sweep::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    width: 32%;
+    background: linear-gradient(90deg, transparent, rgba(0, 229, 160, 0.16), transparent);
+    animation: sweep 1.5s linear infinite;
+  }
+}
