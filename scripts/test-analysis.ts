@@ -1,7 +1,7 @@
 /**
  * Scenario tests for the analysis engine.
  *
- *   npm run test:analysis
+ *   npm test
  *
  * Runs on plain Node (>=22) via type stripping — no test framework needed.
  * Each case asserts the driver key the engine should pick, so tuning a
@@ -37,6 +37,8 @@ function asset(overrides: Partial<AssetSnapshot>): AssetSnapshot {
     volume24h: 50_000_000,
     volumeChange24h: 0,
     volumeToMarketCap: 0.05,
+    cexVolume24h: null,
+    dexVolume24h: null,
     circulatingSupply: 1_000_000_000,
     totalSupply: 1_000_000_000,
     maxSupply: null,
@@ -209,7 +211,6 @@ for (const testCase of cases) {
   console.log(`      secondary : ${result.secondary ? `${result.secondary.key} (${result.secondary.score})` : 'none'}`);
   console.log(`      structure : ${result.structure.title}${okStructure ? '' : ` — expected ${testCase.expectStructure}`}`);
   console.log(`      confidence: ${result.confidence}${result.missing.length ? ` (missing: ${result.missing.join(', ')})` : ''}`);
-  console.log(`      verdict   : ${result.verdict}`);
   console.log('');
 }
 

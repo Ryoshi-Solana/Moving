@@ -1,17 +1,17 @@
 import { AnalyzePanel } from '@/components/AnalyzePanel';
 import { ExampleAnalysis } from '@/components/ExampleAnalysis';
 import { FinalCta, Footer, HowItWorks, Navbar } from '@/components/Chrome';
+import { TrendingTicker } from '@/components/TrendingTicker';
 import { APP } from '@/lib/config';
 
 export default function HomePage() {
   return (
     <>
       <Navbar />
+      <TrendingTicker />
 
       <main>
         <section className="mx-auto max-w-5xl px-5 pb-16 pt-14 sm:px-6 sm:pb-20 sm:pt-24">
-          {/* Small credibility line above the headline — the first thing a
-              crypto-native reader checks is where the data comes from. */}
           <div className="flex items-center gap-2.5">
             <span aria-hidden="true" className="h-[5px] w-[5px] animate-breathe bg-mint" />
             <span className="text-[10.5px] font-medium uppercase tracking-[0.18em] text-faint">

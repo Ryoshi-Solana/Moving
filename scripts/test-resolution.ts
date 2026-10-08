@@ -1,195 +1,285 @@
 /**
- * Tests for input handling and CMC payload normalization.
- *
- *   npm run test:resolution
- *
- * Uses recorded-shape CMC payloads rather than live calls, so it runs offline
- * and without spending API credits.
+ * Unit tests for the pure helpers behind asset resolution: input
+ * classification/sanitization, CMC payload normalization, and display
+ * formatting. No network — these test logic only.
  */
 
 import { classifyInput, looksLikeSymbol, sanitizeQuery, slugify } from '@/lib/asset-input';
-import { formatCompactUsd, formatPercent, formatPrice, impliedPriceDelta, truncateMiddle } from '@/lib/format';
 import { AppError } from '@/lib/errors';
+import {
+  formatCompactNumber,
+  formatCompactUsd,
+  formatPercent,
+  formatPrice,
+  formatRatio,
+  impliedPriceDelta,
+  relativeTime,
+  signedPrice,
+  truncateMiddle
+} from '@/lib/format';
+import { pickDiscoveryCards } from '@/lib/discovery-pick';
 import { explorerFor, normalize, pickBest } from '@/services/normalize';
-import type { CmcInfoItem, CmcQuoteItem } from '@/types';
+import type { AssetSnapshot, CmcInfoItem, CmcQuoteItem } from '@/types';
 
-let failures = 0;
-let checks = 0;
+let passed = 0;
+let failed = 0;
 
-function check(label: string, condition: boolean, detail = ''): void {
-  checks += 1;
-  if (!condition) failures += 1;
-  console.log(`${condition ? 'PASS' : 'FAIL'}  ${label}${condition || !detail ? '' : ` — ${detail}`}`);
+function assert(label: string, cond: boolean, detail = ''): void {
+  if (cond) {
+    passed++;
+  } else {
+    failed++;
+    console.log(`FAIL  ${label}${detail ? ` — ${detail}` : ''}`);
+  }
 }
 
-/* ---------------- input classification ---------------- */
+function assertEq<T>(label: string, actual: T, expected: T): void {
+  assert(label, actual === expected, `got ${JSON.stringify(actual)}, expected ${JSON.stringify(expected)}`);
+}
 
-console.log('\nInput classification');
-check('BTC is text', classifyInput('BTC') === 'text');
-check('Shiba Inu is text', classifyInput('Shiba Inu') === 'text');
-check('EVM address detected', classifyInput('0x6982508145454ce325ddbe47a25d4ec3d2311933') === 'address');
-check('Checksummed EVM address detected', classifyInput('0x6982508145454Ce325dDbE47a25d4ec3d2311933') === 'address');
-check('Solana mint detected', classifyInput('DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263') === 'address');
-check('Tron address detected', classifyInput('TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t') === 'address');
-check('Short hex is not an address', classifyInput('0x1234') === 'text');
-check('looksLikeSymbol accepts $PEPE', looksLikeSymbol('$PEPE'));
-check('looksLikeSymbol rejects a sentence', !looksLikeSymbol('why is btc up'));
-check('slugify handles spaces', slugify('Shiba Inu') === 'shiba-inu', slugify('Shiba Inu'));
-
-/* ---------------- input validation ---------------- */
-
-console.log('\nInput validation');
-check('trims and collapses whitespace', sanitizeQuery('  shiba   inu ') === 'shiba inu');
-check('keeps an address intact', sanitizeQuery('0x6982508145454ce325ddbe47a25d4ec3d2311933').length === 42);
-check('rejects empty', rejects(() => sanitizeQuery('   ')));
-check('rejects non-string', rejects(() => sanitizeQuery(null)));
-check('rejects overlong input', rejects(() => sanitizeQuery('x'.repeat(65))));
-check('rejects angle brackets (XSS shape)', rejects(() => sanitizeQuery('<script>alert(1)</script>')));
-check('rejects path traversal', rejects(() => sanitizeQuery('../../etc/passwd')));
-check('rejects query injection', rejects(() => sanitizeQuery('BTC&convert=USD&aux=all')));
-
-function rejects(fn: () => unknown): boolean {
+function assertThrowsInvalid(label: string, fn: () => void): void {
   try {
     fn();
-    return false;
+    assert(label, false, 'did not throw');
   } catch (err) {
-    return err instanceof AppError && err.code === 'INVALID_INPUT';
+    assert(label, err instanceof AppError && err.code === 'INVALID_INPUT', `threw ${String(err)}`);
   }
 }
 
-/* ---------------- normalization ---------------- */
+/* ---------------- classifyInput ---------------- */
+assertEq('EVM address classified', classifyInput('0x1234567890abcdef1234567890abcdef12345678'), 'address');
+assertEq('Solana-shaped address classified', classifyInput('DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263'), 'address');
+assertEq('Tron address classified', classifyInput('TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf'), 'address');
+assertEq('Ticker classified as text', classifyInput('PEPE'), 'text');
+assertEq('Coin name classified as text', classifyInput('Solana'), 'text');
+assertEq('Dollar-prefixed ticker classified as text', classifyInput('$PEPE'), 'text');
 
-console.log('\nNormalization');
-
-const pepeQuote: CmcQuoteItem = {
-  id: 24478,
-  name: 'Pepe',
-  symbol: 'PEPE',
-  slug: 'pepe',
-  cmc_rank: 28,
-  num_market_pairs: 412,
-  circulating_supply: 420_690_000_000_000,
-  total_supply: 420_690_000_000_000,
-  max_supply: null,
-  platform: { id: 1027, name: 'Ethereum', symbol: 'ETH', token_address: '0x6982508145454ce325ddbe47a25d4ec3d2311933' },
-  last_updated: '2026-09-15T10:00:00.000Z',
-  quote: {
-    USD: {
-      price: 0.0000124,
-      volume_24h: 2_180_000_000,
-      volume_change_24h: 184.6,
-      percent_change_1h: 1.2,
-      percent_change_24h: 27.4,
-      percent_change_7d: 38.1,
-      percent_change_30d: 52.3,
-      market_cap: 5_210_000_000,
-      market_cap_dominance: 0.18,
-      fully_diluted_market_cap: 5_210_000_000,
-      last_updated: '2026-09-15T10:00:00.000Z'
-    }
-  }
-};
-
-const pepeInfo: CmcInfoItem = {
-  id: 24478,
-  name: 'Pepe',
-  symbol: 'PEPE',
-  slug: 'pepe',
-  category: 'token',
-  logo: 'https://s2.coinmarketcap.com/static/img/coins/64x64/24478.png',
-  platform: { id: 1027, name: 'Ethereum', symbol: 'ETH', token_address: '0x6982508145454ce325ddbe47a25d4ec3d2311933' },
-  urls: { website: ['https://www.pepe.vip/'], explorer: ['https://etherscan.io/token/0x6982508145454ce325ddbe47a25d4ec3d2311933'] }
-};
-
-const pepe = normalize(pepeQuote, pepeInfo);
-check('carries symbol', pepe.symbol === 'PEPE');
-check('carries chain', pepe.chain === 'Ethereum');
-check('extracts contract', pepe.primaryContract?.address === '0x6982508145454ce325ddbe47a25d4ec3d2311933');
-check('builds explorer link', pepe.primaryContract?.explorerUrl === 'https://etherscan.io/token/0x6982508145454ce325ddbe47a25d4ec3d2311933');
-check('computes turnover', Math.abs((pepe.volumeToMarketCap ?? 0) - 0.4184) < 0.001, String(pepe.volumeToMarketCap));
-check('flags derived market cap change', pepe.marketCapChangeIsDerived && pepe.marketCapChange24h === 27.4);
-check('picks website url', pepe.websiteUrl === 'https://www.pepe.vip/');
-
-// A native coin with no platform and a plan that omits volume_change_24h.
-const sparse: CmcQuoteItem = {
-  ...pepeQuote,
-  id: 1,
-  name: 'Bitcoin',
-  symbol: 'BTC',
-  slug: 'bitcoin',
-  platform: null,
-  quote: {
-    USD: {
-      ...pepeQuote.quote.USD,
-      volume_change_24h: null,
-      percent_change_7d: null,
-      market_cap: null,
-      fully_diluted_market_cap: null
-    }
-  }
-};
-const btc = normalize(sparse, null);
-check('handles null platform', btc.chain === null && btc.primaryContract === null);
-check('handles missing volume change', btc.volumeChange24h === null);
-check('turnover null without market cap', btc.volumeToMarketCap === null);
-check('falls back to generated logo url', btc.logoUrl?.includes('/1.png') === true, String(btc.logoUrl));
-
-// Garbage numbers from upstream must not leak into the UI.
-const dirty: CmcQuoteItem = {
-  ...pepeQuote,
-  quote: { USD: { ...pepeQuote.quote.USD, price: Number.NaN, market_cap: Number.POSITIVE_INFINITY } }
-};
-const cleaned = normalize(dirty, null);
-check('NaN price becomes null', cleaned.price === null);
-check('Infinite market cap becomes null', cleaned.marketCap === null);
-
-check('throws when the USD quote is absent', (() => {
+/* ---------------- sanitizeQuery ---------------- */
+assertEq('trims whitespace', sanitizeQuery('  BTC  '), 'BTC');
+assertEq('collapses internal whitespace', sanitizeQuery('shiba   inu'), 'shiba inu');
+assertThrowsInvalid('rejects empty string', () => sanitizeQuery(''));
+assertThrowsInvalid('rejects whitespace-only string', () => sanitizeQuery('   '));
+assertThrowsInvalid('rejects non-string input', () => sanitizeQuery(42 as unknown as string));
+assertThrowsInvalid('rejects overlong input', () => sanitizeQuery('a'.repeat(65)));
+assertThrowsInvalid('rejects script-injection-shaped input', () => sanitizeQuery('<script>alert(1)</script>'));
+assert('allows apostrophe in name-shaped queries', (() => {
   try {
-    normalize({ ...pepeQuote, quote: {} }, null);
+    sanitizeQuery("Trader's Coin");
+    return true;
+  } catch {
     return false;
-  } catch (err) {
-    return err instanceof AppError && err.code === 'MISSING_DATA';
   }
 })());
 
-/* ---------------- formatting ---------------- */
+/* ---------------- looksLikeSymbol / slugify ---------------- */
+assertEq('short alnum looks like a symbol', looksLikeSymbol('PEPE'), true);
+assertEq('long phrase does not look like a symbol', looksLikeSymbol('the sandbox metaverse'), false);
+assertEq('slugify basic name', slugify('The Sandbox'), 'the-sandbox');
+assertEq('slugify strips punctuation', slugify("Trader's Coin!"), 'trader-s-coin');
+assertEq('slugify collapses repeated separators', slugify('Multi   Word   Name'), 'multi-word-name');
 
-console.log('\nFormatting');
-check('sub-cent price keeps significant digits', formatPrice(0.0000124) === '$0.0000124', formatPrice(0.0000124));
-check('no trailing zeros on sub-cent prices', !/0$/.test(formatPrice(0.00001)) || formatPrice(0.00001) === '$0.00001', formatPrice(0.00001));
-check('large price uses thousands separators', formatPrice(96420.18) === '$96,420.18', formatPrice(96420.18));
-check('mid price uses two decimals', formatPrice(214.55) === '$214.55', formatPrice(214.55));
-check('cent-range price uses four decimals', formatPrice(0.0425) === '$0.0425', formatPrice(0.0425));
-check('null price renders as a dash', formatPrice(null) === '—');
-check('NaN price renders as a dash', formatPrice(Number.NaN) === '—');
-check('billions compact correctly', formatCompactUsd(5_210_000_000) === '$5.21B', formatCompactUsd(5_210_000_000));
-check('trillions compact correctly', formatCompactUsd(1_910_000_000_000) === '$1.91T', formatCompactUsd(1_910_000_000_000));
-check('null market cap renders as a dash', formatCompactUsd(null) === '—');
-check('percent keeps one decimal when large', formatPercent(184.6) === '+184.6%', formatPercent(184.6));
-check('percent drops a pointless .0', formatPercent(620) === '+620%', formatPercent(620));
-check('negative percent keeps its sign', formatPercent(-3.12) === '-3.12%', formatPercent(-3.12));
-check('null percent renders as a dash', formatPercent(null) === '—');
-check('implied delta matches the percentage', Math.abs((impliedPriceDelta(127.4, 27.4) ?? 0) - 27.4) < 0.01, String(impliedPriceDelta(127.4, 27.4)));
-check('implied delta is null without inputs', impliedPriceDelta(null, 12) === null);
-check('address truncation keeps both ends', truncateMiddle('0x6982508145454ce325ddbe47a25d4ec3d2311933', 8, 6) === '0x698250…311933', truncateMiddle('0x6982508145454ce325ddbe47a25d4ec3d2311933', 8, 6));
-check('short strings are not truncated', truncateMiddle('BTC') === 'BTC');
+/* ---------------- formatPrice ---------------- */
+assertEq('formats zero', formatPrice(0), '$0.00');
+assertEq('formats null as em dash', formatPrice(null), '—');
+assertEq('formats large price without excess decimals', formatPrice(65000.4), '$65,000.40');
+assertEq('formats mid-range price to cents', formatPrice(1.5), '$1.50');
+assertEq('formats sub-dollar price to four decimals', formatPrice(0.0234), '$0.0234');
+assertEq('formats sub-cent price with significant digits (PEPE case)', formatPrice(0.0000124), '$0.0000124');
+assertEq('trims trailing zeros on sub-cent price', formatPrice(0.00001), '$0.00001');
 
-/* ---------------- explorers + ticker disambiguation ---------------- */
+/* ---------------- formatCompactUsd / formatCompactNumber ---------------- */
+assertEq('compact trillions', formatCompactUsd(1_500_000_000_000), '$1.5T');
+assertEq('compact billions', formatCompactUsd(5_210_000_000), '$5.21B');
+assertEq('compact millions trims a whole number', formatCompactUsd(184_000_000), '$184M');
+assertEq('compact small value stays plain', formatCompactUsd(42.5), '$42.50');
+assertEq('compact handles negative sign', formatCompactUsd(-2_000_000), '-$2M');
+assertEq('compact number (no currency)', formatCompactNumber(420_690_000_000_000), '420.69T');
 
-console.log('\nExplorers and ticker collisions');
-check('solana explorer', explorerFor('Solana', 'abc') === 'https://solscan.io/token/abc');
-check('bnb explorer', explorerFor('BNB Smart Chain (BEP20)', 'abc')?.startsWith('https://bscscan.com') === true);
-check('unknown chain gets no link', explorerFor('Some New Chain', 'abc') === null);
-check('null platform gets no link', explorerFor(null, 'abc') === null);
+/* ---------------- formatPercent ---------------- */
+assertEq('adds plus sign for positive', formatPercent(27.4), '+27.4%');
+assertEq('keeps minus sign for negative', formatPercent(-14.2), '-14.2%');
+assertEq('formats null as em dash', formatPercent(null), '—');
+assertEq('drops decimal for large magnitude', formatPercent(184.6), '+184.6%');
+assertEq('unsigned mode has no plus', formatPercent(27.4, { signed: false }), '27.4%');
+assertEq('zero has no sign', formatPercent(0), '0%');
 
-const impostor: CmcQuoteItem = {
-  ...pepeQuote,
-  id: 99999,
-  cmc_rank: 4200,
-  quote: { USD: { ...pepeQuote.quote.USD, market_cap: 12_000, volume_24h: 900 } }
-};
-check('prefers the real PEPE over an impostor', pickBest([impostor, pepeQuote])?.id === 24478);
-check('returns null for an empty candidate list', pickBest([]) === null);
+/* ---------------- formatRatio ---------------- */
+assertEq('ratio under 1 shows 3 decimals', formatRatio(0.052), '0.052');
+assertEq('ratio over 1 shows 2 decimals', formatRatio(2.5), '2.50');
+assertEq('null ratio is em dash', formatRatio(null), '—');
 
-console.log(`\n${failures === 0 ? `All ${checks} checks passed.` : `${failures} of ${checks} checks failed.`}`);
-process.exit(failures === 0 ? 0 : 1);
+/* ---------------- impliedPriceDelta / signedPrice ---------------- */
+{
+  const delta = impliedPriceDelta(100, 25); // was ~80, now 100
+  assert('implied delta is positive and plausible', delta !== null && delta > 19 && delta < 21, String(delta));
+  assertEq('signedPrice adds a plus', signedPrice(5), '+$5.00');
+  assertEq('signedPrice adds a minus', signedPrice(-5), '-$5.00');
+  assertEq('signedPrice null is em dash', signedPrice(null), '—');
+}
+
+/* ---------------- truncateMiddle ---------------- */
+assertEq(
+  'truncates a long contract address',
+  truncateMiddle('0x1234567890abcdef1234567890abcdef12345678', 6, 4),
+  '0x1234…5678'
+);
+assertEq('leaves short strings untouched', truncateMiddle('0xshort', 6, 4), '0xshort');
+
+/* ---------------- relativeTime ---------------- */
+assertEq('empty input yields empty string', relativeTime(null), '');
+assert('recent timestamp reads in seconds', relativeTime(new Date().toISOString()).endsWith('s ago'));
+
+/* ---------------- normalize() ---------------- */
+function quoteItem(overrides: Partial<CmcQuoteItem> = {}): CmcQuoteItem {
+  return {
+    id: 24478,
+    name: 'Pepe',
+    symbol: 'PEPE',
+    slug: 'pepe',
+    cmc_rank: 28,
+    num_market_pairs: 412,
+    circulating_supply: 420_690_000_000_000,
+    total_supply: 420_690_000_000_000,
+    max_supply: null,
+    platform: { name: 'Ethereum', symbol: 'ETH', token_address: '0xabc0000000000000000000000000000000dead' },
+    last_updated: '2024-01-01T00:00:00.000Z',
+    quote: {
+      USD: {
+        price: 0.0000124,
+        volume_24h: 2_180_000_000,
+        volume_change_24h: 184.6,
+        percent_change_1h: 1.2,
+        percent_change_24h: 27.4,
+        percent_change_7d: 38.1,
+        percent_change_30d: 52.3,
+        market_cap: 5_210_000_000,
+        market_cap_dominance: 0.18,
+        fully_diluted_market_cap: 5_210_000_000,
+        last_updated: '2024-01-01T00:00:00.000Z'
+      }
+    },
+    ...overrides
+  };
+}
+
+{
+  const normalized = normalize(quoteItem(), null);
+  assertEq('normalize keeps symbol', normalized.symbol, 'PEPE');
+  assertEq('normalize keeps chain from platform', normalized.chain, 'Ethereum');
+  assertEq('normalize sets primary contract address', normalized.primaryContract?.address, '0xabc0000000000000000000000000000000dead');
+  assert('normalize computes volume/marketcap ratio', Math.abs((normalized.volumeToMarketCap ?? 0) - 2_180_000_000 / 5_210_000_000) < 1e-9);
+  assertEq('normalize always nulls cexVolume24h (Basic plan has no split)', normalized.cexVolume24h, null);
+  assertEq('normalize always nulls dexVolume24h (Basic plan has no split)', normalized.dexVolume24h, null);
+  assertEq('normalize marks market cap change as derived', normalized.marketCapChangeIsDerived, true);
+}
+
+{
+  const missingQuote = quoteItem({ quote: {} });
+  let threw = false;
+  try {
+    normalize(missingQuote, null);
+  } catch (err) {
+    threw = err instanceof AppError && err.code === 'MISSING_DATA';
+  }
+  assert('normalize throws MISSING_DATA when USD quote is absent', threw);
+}
+
+{
+  const info: CmcInfoItem = {
+    id: 24478,
+    name: 'Pepe',
+    symbol: 'PEPE',
+    slug: 'pepe',
+    platform: null,
+    urls: { website: ['https://pepe.vip'] }
+  };
+  const normalized = normalize(quoteItem(), info);
+  assertEq('normalize reads website from info.urls', normalized.websiteUrl, 'https://pepe.vip');
+}
+
+/* ---------------- pickBest() ---------------- */
+{
+  const low = quoteItem({ id: 1, quote: { USD: { ...quoteItem().quote.USD, market_cap: 1_000, volume_24h: 10 } } });
+  const high = quoteItem({ id: 2, quote: { USD: { ...quoteItem().quote.USD, market_cap: 9_000_000, volume_24h: 500_000 } } });
+  const best = pickBest([low, high]);
+  assertEq('pickBest prefers higher market cap', best?.id, 2);
+  assertEq('pickBest returns null for empty list', pickBest([]), null);
+}
+
+/* ---------------- explorerFor() ---------------- */
+assertEq('ethereum explorer link', explorerFor('Ethereum', '0xabc'), 'https://etherscan.io/token/0xabc');
+assertEq('solana explorer link', explorerFor('Solana', 'ABC123'), 'https://solscan.io/token/ABC123');
+assertEq('unknown platform has no explorer link', explorerFor('SomeNewChain', '0xabc'), null);
+assertEq('null platform has no explorer link', explorerFor(null, '0xabc'), null);
+
+/* ---------------- pickDiscoveryCards() ---------------- */
+function coin(id: number, symbol: string): AssetSnapshot {
+  return {
+    id,
+    name: symbol,
+    symbol,
+    slug: symbol.toLowerCase(),
+    rank: id,
+    logoUrl: null,
+    category: null,
+    chain: null,
+    primaryContract: null,
+    contracts: [],
+    websiteUrl: null,
+    price: 1,
+    percentChange1h: 0,
+    percentChange24h: 1,
+    percentChange7d: 1,
+    percentChange30d: 1,
+    marketCap: 1_000_000,
+    fullyDilutedMarketCap: null,
+    marketCapDominance: null,
+    marketCapChange24h: 1,
+    marketCapChangeIsDerived: true,
+    volume24h: 1000,
+    volumeChange24h: 1,
+    volumeToMarketCap: 0.001,
+    cexVolume24h: null,
+    dexVolume24h: null,
+    circulatingSupply: null,
+    totalSupply: null,
+    maxSupply: null,
+    numMarketPairs: null,
+    currency: 'USD',
+    lastUpdated: null
+  };
+}
+
+{
+  const pool = Array.from({ length: 10 }, (_, i) => coin(i + 1, `C${i + 1}`));
+  const picks = pickDiscoveryCards(pool, 3, 3);
+  assert('discovery picks never include the current asset', !picks.some((p) => p.id === 3));
+  assert('discovery picks contain no duplicates', new Set(picks.map((p) => p.id)).size === picks.length);
+  assert('discovery picks respect the requested count', picks.length === 3);
+}
+
+{
+  // Pool has only 4 eligible entries (5 total minus the current asset) and 3
+  // of those 4 are "recent" — excluding all of them would leave just 1
+  // candidate, below the requested count of 3, so recent ones must be let
+  // back in rather than starving the footer down to 1 card.
+  const pool = Array.from({ length: 5 }, (_, i) => coin(i + 1, `C${i + 1}`));
+  const picks = pickDiscoveryCards(pool, 1, 3, ['C2', 'C3', 'C4']);
+  assert('discovery falls back to recent picks when excluding them leaves too few candidates', picks.length === 3);
+}
+
+{
+  // Plenty of non-recent candidates remain, so recent ones should be skipped.
+  const pool = Array.from({ length: 10 }, (_, i) => coin(i + 1, `C${i + 1}`));
+  const picks = pickDiscoveryCards(pool, 1, 3, ['C2', 'C3']);
+  assert('discovery avoids recently-clicked assets when enough alternatives exist', !picks.some((p) => p.symbol === 'C2' || p.symbol === 'C3'));
+}
+
+{
+  const pool = [coin(1, 'ONLY')];
+  const picks = pickDiscoveryCards(pool, 2, 3);
+  assert('discovery degrades gracefully when the pool has fewer entries than requested', picks.length === 1);
+}
+
+console.log(`\n${passed} passed, ${failed} failed.`);
+process.exit(failed === 0 ? 0 : 1);

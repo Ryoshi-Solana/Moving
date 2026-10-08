@@ -22,8 +22,6 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  // Matches the site's actual background (deep navy), so the mobile browser
-  // chrome doesn't show a mismatched near-black band above the page.
   themeColor: '#0A121C',
   width: 'device-width',
   initialScale: 1

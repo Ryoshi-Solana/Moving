@@ -14,8 +14,8 @@ export const dynamic = 'force-dynamic';
 /**
  * GET /api/analyze?q=PEPE
  *
- * The only server endpoint in the app. The CMC key is read here and in the
- * service layer, never sent to the browser.
+ * The only server endpoint for the core analysis. The CMC key is read here and
+ * in the service layer, never sent to the browser.
  */
 export async function GET(request: Request): Promise<NextResponse<AnalyzeResponse | ApiErrorBody>> {
   const started = Date.now();
@@ -44,7 +44,6 @@ export async function GET(request: Request): Promise<NextResponse<AnalyzeRespons
 
     return NextResponse.json(payload, {
       headers: {
-        // Edge/CDN may reuse a result briefly; the browser always revalidates.
         'Cache-Control': `public, max-age=0, s-maxage=${SERVER_CONFIG.quoteTtlSeconds}, stale-while-revalidate=120`,
         'X-Response-Time': `${Date.now() - started}ms`
       }
@@ -52,7 +51,6 @@ export async function GET(request: Request): Promise<NextResponse<AnalyzeRespons
   } catch (err) {
     const error = toAppError(err);
 
-    // Full detail stays in the server log; the client only ever sees our copy.
     console.error('[analyze] failed', {
       query,
       code: error.code,

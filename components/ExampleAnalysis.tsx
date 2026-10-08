@@ -2,11 +2,7 @@ import { formatCompactUsd, formatPercent, formatPrice, formatRatio } from '@/lib
 import { sampleAnalysis } from '@/lib/sample';
 import { changeColor, FieldLabel, TONE_RULE, TONE_TEXT } from '@/components/ui';
 
-/**
- * Static preview shown before the user searches. Sample numbers, real engine —
- * a compressed version of the live report so the two never look like different
- * products.
- */
+/** Static preview shown before the user searches. Sample numbers, real engine. */
 export function ExampleAnalysis() {
   const { asset, analysis } = sampleAnalysis();
 
@@ -43,9 +39,7 @@ export function ExampleAnalysis() {
         <p className={`mt-3 text-[23px] font-medium leading-tight tracking-display ${TONE_TEXT[analysis.primary.tone]}`}>
           {analysis.primary.title}
         </p>
-        <p className="mt-2.5 max-w-readable text-[13.5px] leading-relaxed text-muted">
-          {analysis.primary.explanation}
-        </p>
+        <p className="mt-2.5 max-w-readable text-[13.5px] leading-relaxed text-muted">{analysis.primary.explanation}</p>
       </div>
 
       <div className="grid gap-px border-t border-edge bg-edge sm:grid-cols-2">

@@ -4,7 +4,9 @@ export function formatPrice(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return '—';
   const abs = Math.abs(value);
   if (abs === 0) return '$0.00';
-  if (abs >= 1000) return '$' + value.toLocaleString('en-US', { maximumFractionDigits: 2 });
+  if (abs >= 1000) {
+    return '$' + value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
   if (abs >= 1) return '$' + value.toFixed(2);
   if (abs >= 0.01) return '$' + value.toFixed(4);
 
@@ -52,15 +54,14 @@ export function formatCompactNumber(value: number | null | undefined): string {
 }
 
 function trim(n: number): string {
-  return n >= 100 ? n.toFixed(0) : n >= 10 ? n.toFixed(1) : n.toFixed(2);
+  return trimTrailingZeros(n.toFixed(2));
 }
 
 export function formatPercent(value: number | null | undefined, opts: { signed?: boolean; digits?: number } = {}): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return '—';
   const digits = opts.digits ?? (Math.abs(value) >= 10 ? 1 : 2);
   const sign = opts.signed !== false && value > 0 ? '+' : '';
-  // 620.0% reads worse than 620%; 184.6% keeps the precision that matters.
-  const body = value.toFixed(digits).replace(/\.0$/, '');
+  const body = trimTrailingZeros(value.toFixed(digits));
   return `${sign}${body}%`;
 }
 

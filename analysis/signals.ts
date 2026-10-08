@@ -53,10 +53,6 @@ export function buildSignals(asset: AssetSnapshot): Signals {
   };
 }
 
-/* ------------------------------------------------------------------ *
- * Individual classifiers
- * ------------------------------------------------------------------ */
-
 export function classifyDirection(price24h: number | null): Direction {
   if (price24h === null) return 'flat';
   if (price24h > THRESHOLDS.move.noise) return 'up';
@@ -129,7 +125,6 @@ export function shortTermReversal(asset: AssetSnapshot): boolean {
   const { percentChange1h: hour, percentChange24h: day } = asset;
   if (hour === null || day === null) return false;
   if (Math.abs(day) < THRESHOLDS.move.noise) return false;
-  // The last hour is meaningfully against the day's direction.
   return Math.sign(hour) !== Math.sign(day) && Math.abs(hour) >= 1;
 }
 

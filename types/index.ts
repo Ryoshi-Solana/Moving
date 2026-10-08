@@ -82,6 +82,20 @@ export interface CmcMapItem {
   platform: CmcPlatform | null;
 }
 
+/** Minimal shape of /v1/global-metrics/quotes/latest — only fields we use. */
+export interface CmcGlobalMetrics {
+  btc_dominance: number | null;
+  eth_dominance: number | null;
+  quote: {
+    USD: {
+      total_market_cap: number | null;
+      total_volume_24h: number | null;
+      total_market_cap_yesterday_percentage_change?: number | null;
+      total_volume_24h_yesterday_percentage_change?: number | null;
+    };
+  };
+}
+
 /* ------------------------------------------------------------------ *
  * Normalized application shapes
  * ------------------------------------------------------------------ */
@@ -116,13 +130,23 @@ export interface AssetSnapshot {
   marketCap: number | null;
   fullyDilutedMarketCap: number | null;
   marketCapDominance: number | null;
-  /** Derived, not reported by CMC. See `deriveMarketCapChange24h`. */
+  /** Derived, not reported by CMC. See normalize.ts. */
   marketCapChange24h: number | null;
   marketCapChangeIsDerived: boolean;
 
   volume24h: number | null;
   volumeChange24h: number | null;
   volumeToMarketCap: number | null;
+
+  /**
+   * CEX/DEX volume split. The CMC Basic-plan quotes endpoint this app uses
+   * does not return these fields, so normalize.ts always sets them to null.
+   * They exist on the type so the CEX_VS_DEX question can be wired up
+   * end-to-end and will activate automatically if a future data source
+   * populates them — never invented, never assumed present.
+   */
+  cexVolume24h: number | null;
+  dexVolume24h: number | null;
 
   circulatingSupply: number | null;
   totalSupply: number | null;
@@ -131,6 +155,25 @@ export interface AssetSnapshot {
 
   currency: string;
   lastUpdated: string | null;
+}
+
+/** Normalized global market snapshot, used only by CONTEXT questions. */
+export interface GlobalSnapshot {
+  totalMarketCap: number | null;
+  totalVolume24h: number | null;
+  btcDominance: number | null;
+  marketCapChange24h: number | null;
+}
+
+/**
+ * Everything the question engine can draw on beyond the primary asset.
+ * Each field is independently optional — a failure fetching one must never
+ * block the others or the core analysis.
+ */
+export interface MarketContext {
+  btc: AssetSnapshot | null;
+  global: GlobalSnapshot | null;
+  movers: AssetSnapshot[] | null;
 }
 
 /* ------------------------------------------------------------------ *
@@ -147,7 +190,7 @@ export type DriverTone = 'positive' | 'caution' | 'negative' | 'neutral';
 export interface Signals {
   direction: Direction;
   moveSize: MoveSize;
-  /** 0–1. How big the 24h move is relative to a 25% reference move. */
+  /** 0–1. How big the 24h move is relative to a reference move. */
   momentumStrength: number;
   volumeTrend: VolumeTrend;
   /** 0–1. How strongly volume growth backs the price move. Null when unknown. */
@@ -220,4 +263,43 @@ export interface ApiErrorBody {
     message: string;
     hint?: string;
   };
+}
+
+/* ------------------------------------------------------------------ *
+ * Question engine (V1 investigation loop)
+ * ------------------------------------------------------------------ */
+
+export type QuestionCategory = 'WHY' | 'STRENGTH' | 'CHANGE' | 'CONTEXT' | 'DISCOVERY';
+
+/** What a question needs before it can even be considered. */
+export type QuestionRequirement = 'base' | 'btc' | 'global' | 'movers' | 'cexdex';
+
+export interface QuestionAnswer {
+  id: string;
+  title: string;
+  summary: string;
+  /** label/value pairs — the numbers behind the answer, shown expandable. */
+  dataUsed: DataPoint[];
+  tone: DriverTone;
+}
+
+export interface QuestionDefinition {
+  id: string;
+  category: QuestionCategory;
+  label: string;
+  requires: QuestionRequirement[];
+  /** Returns true if this question is eligible to be offered right now. */
+  isEligible: (ctx: QuestionEngineContext) => boolean;
+  /** Higher scores are preferred by the selector. */
+  priority: (ctx: QuestionEngineContext) => number;
+  /** Produces the deterministic answer. Only called when eligible. */
+  answer: (ctx: QuestionEngineContext) => QuestionAnswer;
+}
+
+/** Everything a question's trigger/priority/handler can read. */
+export interface QuestionEngineContext {
+  asset: AssetSnapshot;
+  analysis: Analysis;
+  context: MarketContext;
+  answeredIds: string[];
 }

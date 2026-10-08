@@ -48,6 +48,11 @@ export function normalize(item: CmcQuoteItem, info: CmcInfoItem | null): AssetSn
     volumeChange24h: finite(quote.volume_change_24h),
     volumeToMarketCap: marketCap && volume24h && marketCap > 0 ? volume24h / marketCap : null,
 
+    // The Basic-plan quotes endpoint this app calls has no CEX/DEX split.
+    // Always null here — see the AssetSnapshot type comment.
+    cexVolume24h: null,
+    dexVolume24h: null,
+
     circulatingSupply: finite(item.circulating_supply),
     totalSupply: finite(item.total_supply),
     maxSupply: finite(item.max_supply),
@@ -79,10 +84,6 @@ function buildContracts(item: CmcQuoteItem, info: CmcInfoItem | null): ContractR
   return refs.slice(0, 4);
 }
 
-/**
- * Explorer links for the chains CMC most commonly reports. Anything unknown
- * gets no link rather than a guessed one.
- */
 const EXPLORERS: Array<[RegExp, (address: string) => string]> = [
   [/^ethereum$/i, (a) => `https://etherscan.io/token/${a}`],
   [/^bnb|^binance/i, (a) => `https://bscscan.com/token/${a}`],

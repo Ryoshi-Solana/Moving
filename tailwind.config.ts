@@ -5,24 +5,15 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Deep navy / blue-charcoal, not pure black — the page background.
         void: '#0A121C',
-        // Cards sit visibly above the page: blue-gray with a teal undertone.
         panel: '#121D29',
-        // Elevated surfaces (logo chip, hover states) — one step brighter.
         raised: '#1B2733',
-        // Borders carry most of the structure here, in three weights, tinted
-        // teal-blue rather than neutral gray. Tailwind can't apply /opacity
-        // modifiers to rgba() tokens, so each weight is its own name.
         edge: 'rgba(110, 168, 178, 0.16)',
         'edge-soft': 'rgba(110, 168, 178, 0.09)',
         'edge-strong': 'rgba(110, 168, 178, 0.30)',
-        // One accent. Everything interactive or product-critical is mint.
         mint: '#00E5A0',
-        // Semantic only — never decorative.
         amber: '#F2B441',
         rose: '#FF5C72',
-        // Text ramp, brightest to faintest.
         ink: '#ECF2F6',
         muted: '#8496A6',
         faint: '#576A7A'

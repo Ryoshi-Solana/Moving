@@ -4,8 +4,7 @@ import { SERVER_CONFIG } from '@/lib/server-config';
  * Fixed-window limiter, keyed by client IP, held in process memory.
  *
  * On serverless this is per-instance rather than global, so treat it as abuse
- * dampening rather than a hard quota. Swap in Upstash/Vercel KV if the product
- * ever needs a real shared limit.
+ * dampening rather than a hard quota.
  */
 
 interface Window {
@@ -47,7 +46,6 @@ function pruneExpired(now: number): void {
   }
 }
 
-/** Best-effort client IP from proxy headers. */
 export function clientKeyFromHeaders(headers: Headers): string {
   const forwarded = headers.get('x-forwarded-for');
   if (forwarded) return forwarded.split(',')[0].trim();

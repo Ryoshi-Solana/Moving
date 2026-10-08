@@ -10,8 +10,6 @@ import type { Analysis, AssetSnapshot, Confidence, DataPoint, Driver, MarketStru
  * a different group becomes the secondary. Market structure is classified
  * separately, and the verdict is composed from the winning driver plus the
  * actual numbers behind it.
- *
- * Adding a new diagnosis means adding one entry to CANDIDATES — nothing else.
  */
 
 const MIN_SECONDARY_SCORE = 25;
@@ -71,7 +69,6 @@ const volumeExpansion: Candidate = (s, asset) => {
 const broadParticipation: Candidate = (s, asset) => {
   if (s.direction !== 'up') return null;
   if (s.turnoverLevel !== 'elevated' && s.turnoverLevel !== 'extreme') return null;
-  // 0 means the other timeframes are missing, not that they disagree.
   if (s.trendAlignment < 0) return null;
 
   const base = s.turnoverLevel === 'extreme' ? 48 : 36;

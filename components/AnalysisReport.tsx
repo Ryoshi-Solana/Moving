@@ -5,6 +5,7 @@
 import { useState } from 'react';
 
 import { APP } from '@/lib/config';
+import { biggestChange, collectChangeMetrics } from '@/analysis/questions/shared';
 import {
   formatCompactNumber,
   formatCompactUsd,
@@ -39,8 +40,6 @@ export function AnalysisReport({ data }: { data: AnalyzeResponse }) {
           <ConfidenceTag confidence={analysis.confidence} />
         </header>
 
-        {/* Primary driver owns the block: largest type on the page after the
-            hero, generous padding, full-height accent rail. */}
         <div className="relative px-5 py-7 sm:px-8 sm:py-9">
           <span className={`absolute left-0 top-0 h-full w-[2px] ${TONE_RULE[analysis.primary.tone]}`} />
           <Marker tone={analysis.primary.tone} label="Primary driver" />
@@ -56,9 +55,6 @@ export function AnalysisReport({ data }: { data: AnalyzeResponse }) {
           </p>
         </div>
 
-        {/* Supporting reads sit side by side, visibly subordinate. */}
-        {/* When there is no secondary driver, market structure spans the full
-            width instead of leaving an empty cell next to it. */}
         <div className={`grid gap-px border-t border-edge bg-edge ${analysis.secondary ? 'sm:grid-cols-2' : ''}`}>
           {analysis.secondary ? <SupportingRead role="Secondary driver" driver={analysis.secondary} /> : null}
           <SupportingRead
@@ -75,7 +71,6 @@ export function AnalysisReport({ data }: { data: AnalyzeResponse }) {
         </div>
       </section>
 
-      {/* The conclusion. Largest body text in the report, on the accent. */}
       <section className="relative overflow-hidden rounded-[3px] border border-mint/25 bg-mint/[0.04] px-5 py-6 sm:px-8 sm:py-7">
         <span className="absolute left-0 top-0 h-full w-[2px] bg-mint" />
         <FieldLabel>Verdict</FieldLabel>
@@ -83,6 +78,8 @@ export function AnalysisReport({ data }: { data: AnalyzeResponse }) {
           {analysis.verdict}
         </p>
       </section>
+
+      <WhatChanged asset={asset} />
 
       <DataUsed data={data} />
 
@@ -96,9 +93,6 @@ export function AnalysisReport({ data }: { data: AnalyzeResponse }) {
   );
 }
 
-/* ------------------------------------------------------------------ */
-
-/** A 6px square in the tone colour, replacing decorative emoji. */
 function Marker({ tone, label }: { tone: DriverTone; label: string }) {
   return (
     <div className="flex items-center gap-2.5">
@@ -179,8 +173,6 @@ function MetricStrip({ data }: { data: AnalyzeResponse }) {
   const delta = impliedPriceDelta(asset.price, asset.percentChange24h);
   const turnover = data.analysis.signals.turnoverLevel;
 
-  // gap-px over a bordered container gives clean hairlines that survive the
-  // column spans below, which `divide-x` does not.
   return (
     <div className="grid grid-cols-2 gap-px overflow-hidden rounded-[3px] border border-edge bg-edge sm:grid-cols-3 lg:grid-cols-5">
       <Metric
@@ -205,7 +197,6 @@ function MetricStrip({ data }: { data: AnalyzeResponse }) {
         sub={asset.volumeChange24h !== null ? `${formatPercent(asset.volumeChange24h)} 24h` : null}
         subClass={changeColor(asset.volumeChange24h)}
       />
-      {/* Spans the orphan slot so the grid never ends with a half-empty row. */}
       <Metric
         className="col-span-2 bg-panel sm:col-span-2 lg:col-span-1"
         label="Volume / market cap"
@@ -236,6 +227,41 @@ function ConfidenceTag({ confidence }: { confidence: AnalyzeResponse['analysis']
   return <span className={`text-[11px] uppercase tracking-[0.1em] ${tone}`}>{copy[confidence]}</span>;
 }
 
+/**
+ * MOVING's signature module (spec section 16): the headline deltas at a
+ * glance, plus which one moved the most. Distinct from Data Used below it —
+ * this is the narrative "what changed" read; Data Used is the full transparency
+ * table. Nothing here is an official CMC field beyond what AssetHeader/
+ * MetricStrip already show as real; the callout is a plain comparison of
+ * already-displayed percentages, not a new derived metric, so it needs no
+ * "derived" label of its own.
+ */
+function WhatChanged({ asset }: { asset: AnalyzeResponse['asset'] }) {
+  const metrics = collectChangeMetrics(asset);
+  const biggest = biggestChange(asset);
+  if (metrics.length === 0) return null;
+
+  return (
+    <section className="panel px-5 py-5 sm:px-6">
+      <FieldLabel>What changed</FieldLabel>
+      <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
+        {metrics.map((m) => (
+          <div key={m.label} className="flex flex-col gap-1">
+            <dt className="text-[11px] uppercase tracking-[0.08em] text-faint">{m.label}</dt>
+            <dd className={`tnum text-[15px] font-medium ${changeColor(m.value)}`}>{m.formatted}</dd>
+          </div>
+        ))}
+      </dl>
+      {biggest ? (
+        <p className="mt-4 border-t border-edge-soft pt-3 text-[12.5px] text-muted">
+          <span className="text-faint">Biggest measurable change — </span>
+          <span className="text-ink">{biggest.label}</span>
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
 function DataUsed({ data }: { data: AnalyzeResponse }) {
   const { analysis, asset } = data;
 
@@ -247,10 +273,7 @@ function DataUsed({ data }: { data: AnalyzeResponse }) {
           <Row key={point.label} label={point.label} note={point.note} value={point.value} />
         ))}
         {asset.circulatingSupply !== null ? (
-          <Row
-            label="Circulating supply"
-            value={`${formatCompactNumber(asset.circulatingSupply)} ${asset.symbol}`}
-          />
+          <Row label="Circulating supply" value={`${formatCompactNumber(asset.circulatingSupply)} ${asset.symbol}`} />
         ) : null}
       </dl>
 

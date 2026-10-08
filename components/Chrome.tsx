@@ -16,7 +16,6 @@ export function Navbar() {
   );
 }
 
-/** Present, polished, and deliberately quieter than anything product-critical. */
 export function SocialLinks({ className = '' }: { className?: string }) {
   return (
     <div className={`flex items-center gap-0.5 ${className}`}>
@@ -27,7 +26,7 @@ export function SocialLinks({ className = '' }: { className?: string }) {
         aria-label="Telegram"
         className="rounded-[2px] p-2 text-faint transition-colors duration-150 hover:text-ink"
       >
-        <TelegramIcon className="h-[15px] w-[15px]" />
+        <TelegramIcon className="h-[20px] w-[20px]" />
       </a>
       <a
         href={SOCIAL_LINKS.x}
@@ -36,7 +35,7 @@ export function SocialLinks({ className = '' }: { className?: string }) {
         aria-label="X"
         className="rounded-[2px] p-2 text-faint transition-colors duration-150 hover:text-ink"
       >
-        <XIcon className="h-[15px] w-[15px]" />
+        <XIcon className="h-[20px] w-[20px]" />
       </a>
     </div>
   );
@@ -44,12 +43,8 @@ export function SocialLinks({ className = '' }: { className?: string }) {
 
 const STEPS = [
   { n: '01', title: 'Search', body: 'Enter a ticker, a coin name, or paste a contract address.' },
-  {
-    n: '02',
-    title: 'Analyze',
-    body: 'We pull live market data and compare price, volume and market cap against each other.'
-  },
-  { n: '03', title: 'Understand', body: 'Get a plain explanation of what the data says is most likely driving the move.' }
+  { n: '02', title: 'Analyze', body: 'We pull live market data and compare price, volume and market cap against each other.' },
+  { n: '03', title: 'Investigate', body: 'Get a plain explanation, then keep asking what changed and why.' }
 ];
 
 export function HowItWorks() {
@@ -58,11 +53,8 @@ export function HowItWorks() {
       <h2 id="how-it-works" className="text-[10px] font-medium uppercase tracking-[0.16em] text-faint">
         How it works
       </h2>
-      {/* Hairline columns rather than boxed cards — closer to a spec sheet. */}
       <ol className="mt-8 grid gap-px bg-edge sm:grid-cols-3">
         {STEPS.map((step, index) => (
-          // First column keeps the container's left edge so it lines up with
-          // the hero and the search field above.
           <li key={step.n} className={`bg-void py-6 sm:py-2 ${index === 0 ? 'sm:pr-6' : 'sm:px-6'}`}>
             <span className="tnum text-[11.5px] tracking-[0.1em] text-mint/70">{step.n}</span>
             <h3 className="mt-3 text-[18px] font-medium tracking-tight text-ink">{step.title}</h3>

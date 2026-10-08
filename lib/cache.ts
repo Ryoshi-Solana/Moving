@@ -23,12 +23,23 @@ export function cacheGet<T>(key: string): T | undefined {
     store.delete(key);
     return undefined;
   }
+  // Touch: re-insert so frequently used, long-lived entries (e.g. the 24h ID
+  // directory) are the last to be evicted when the store is full.
+  store.delete(key);
+  store.set(key, hit);
   return hit.value as T;
 }
 
 export function cacheSet<T>(key: string, value: T, ttlSeconds: number): void {
   if (store.size >= MAX_ENTRIES) {
-    // Cheap eviction: drop the oldest inserted key.
+    // Short-lived entries (60s quotes) expire long before they are read again;
+    // drop those first so live long-TTL entries are not evicted instead.
+    const now = Date.now();
+    for (const [k, entry] of store) {
+      if (entry.expiresAt < now) store.delete(k);
+    }
+  }
+  if (store.size >= MAX_ENTRIES) {
     const oldest = store.keys().next().value;
     if (oldest !== undefined) store.delete(oldest);
   }

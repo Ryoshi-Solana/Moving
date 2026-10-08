@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { AnalysisReport } from '@/components/AnalysisReport';
+import { Investigation } from '@/components/Investigation';
 import { AnalyzingState, ErrorNotice } from '@/components/States';
 import { SearchIcon, SpinnerIcon } from '@/components/icons';
 import type { AnalyzeResponse, ApiErrorBody } from '@/types';
@@ -39,7 +40,6 @@ export function AnalyzePanel({ example }: { example?: React.ReactNode }) {
     setError(null);
     setResult(null);
 
-    // Keep the URL shareable without a full Next navigation.
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href);
       url.searchParams.set('q', query);
@@ -76,7 +76,6 @@ export function AnalyzePanel({ example }: { example?: React.ReactNode }) {
     }
   }, []);
 
-  // Deep link support: /?q=PEPE analyzes on load.
   useEffect(() => {
     const initial = new URLSearchParams(window.location.search).get('q');
     if (initial) {
@@ -108,8 +107,6 @@ export function AnalyzePanel({ example }: { example?: React.ReactNode }) {
           void run(input);
         }}
       >
-        {/* The button sits inset inside the field so the whole thing reads as
-            one instrument rather than an input next to a button. */}
         <div className="field group flex flex-col gap-1.5 p-1.5 sm:flex-row sm:items-center">
           <div className="flex flex-1 items-center gap-3 pl-3 sm:pl-4">
             <span className="shrink-0 text-faint transition-colors duration-200 group-focus-within:text-mint">
@@ -162,7 +159,15 @@ export function AnalyzePanel({ example }: { example?: React.ReactNode }) {
       <div ref={resultRef} className="mt-12 scroll-mt-20 sm:mt-14">
         {status === 'loading' ? <AnalyzingState query={pendingQuery} /> : null}
         {status === 'error' && error ? <ErrorNotice error={error} onRetry={() => void run(pendingQuery)} /> : null}
-        {status === 'done' && result ? <AnalysisReport data={result} /> : null}
+        {status === 'done' && result ? (
+          <>
+            <AnalysisReport data={result} />
+            {/* key={result.asset.id} forces a full remount on every new coin, so
+                investigation state (answered questions, expanded trail) never
+                bleeds from one search into the next. */}
+            <Investigation key={result.asset.id} asset={result.asset} analysis={result.analysis} />
+          </>
+        ) : null}
         {status === 'idle' ? example : null}
       </div>
     </div>

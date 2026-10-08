@@ -37,6 +37,9 @@ const SAMPLE_ASSET: AssetSnapshot = {
   volumeChange24h: 184.6,
   volumeToMarketCap: 2_180_000_000 / 5_210_000_000,
 
+  cexVolume24h: null,
+  dexVolume24h: null,
+
   circulatingSupply: 420_690_000_000_000,
   totalSupply: 420_690_000_000_000,
   maxSupply: null,

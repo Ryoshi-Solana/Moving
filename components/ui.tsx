@@ -5,8 +5,7 @@ import type { DriverTone } from '@/types';
  *
  * Only three colours ever carry meaning: mint (positive), amber (caution),
  * rose (negative). A "neutral" diagnosis is exactly that — it gets plain text
- * and a grey rule, not a fourth hue. That is what keeps the interface from
- * turning into a rainbow.
+ * and a grey rule, not a fourth hue.
  */
 export const TONE_TEXT: Record<DriverTone, string> = {
   positive: 'text-mint',
@@ -29,17 +28,10 @@ export function changeColor(value: number | null | undefined): string {
   return 'text-ink';
 }
 
-/** Small uppercase key for a data field. */
 export function FieldLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-faint">{children}</span>
-  );
+  return <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-faint">{children}</span>;
 }
 
-/**
- * One cell of the market snapshot. The value is the point of the cell, so it
- * gets the mono face and the size; label and delta sit quietly around it.
- */
 export function Metric({
   label,
   value,
@@ -61,9 +53,7 @@ export function Metric({
       <span className="tnum text-[17px] font-medium leading-none tracking-tight text-ink sm:text-[21px]">
         {value}
       </span>
-      <span className={`tnum text-[12.5px] leading-none ${sub ? subClass : 'text-transparent'}`}>
-        {sub ?? '\u00A0'}
-      </span>
+      <span className={`tnum text-[12.5px] leading-none ${sub ? subClass : 'text-transparent'}`}>{sub ?? '\u00A0'}</span>
     </div>
   );
 }

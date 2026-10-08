@@ -7,7 +7,6 @@ import type { ApiErrorBody } from '@/types';
 
 const STEPS = ['Analyzing market data', 'Looking at price action', 'Comparing volume', 'Building diagnosis'];
 
-/** Reads as an instrument working, not a spinner: steps resolve in sequence. */
 export function AnalyzingState({ query }: { query: string }) {
   const [step, setStep] = useState(0);
 
@@ -61,9 +60,7 @@ export function ErrorNotice({ error, onRetry }: { error: ApiErrorBody['error']; 
         </span>
         <div className="min-w-0">
           <p className="text-[15px] font-medium leading-snug text-ink">{error.message}</p>
-          {error.hint ? (
-            <p className="mt-2 max-w-readable text-[13px] leading-relaxed text-muted">{error.hint}</p>
-          ) : null}
+          {error.hint ? <p className="mt-2 max-w-readable text-[13px] leading-relaxed text-muted">{error.hint}</p> : null}
           {onRetry && retryable ? (
             <button
               type="button"
