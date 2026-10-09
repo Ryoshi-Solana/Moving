@@ -67,7 +67,7 @@ app/
 components/
   AnalyzePanel.tsx        client: search → loading → result/error
   AnalysisReport.tsx      the full diagnosis view
-  ExampleAnalysis.tsx     landing demo (sample numbers, real engine)
+  ExampleAnalysis.tsx     optional example component (not shown by default)
   States.tsx              loading + error states
   Chrome.tsx              navbar, how it works, CTA, footer
   ui.tsx, icons.tsx       shared primitives
@@ -86,13 +86,13 @@ lib/
   format.ts               number/percent formatting
   config.ts               SOCIAL_LINKS and brand copy
   server-config.ts        server-only tunables (TTLs, rate limit)
-  sample.ts               landing-page demo data
+  sample.ts               example-only sample data (not shown by default)
 types/index.ts            all shared types
 scripts/                  offline test suites
 ```
 
-**Editing the social links:** `lib/config.ts` → `SOCIAL_LINKS.telegram` and
-`SOCIAL_LINKS.x`. They are referenced in the navbar and footer only.
+**Editing the social link:** `lib/config.ts` → `SOCIAL_LINKS.x`. The X link is shown
+in the navbar and footer; Telegram is intentionally omitted.
 
 ---
 
