@@ -31,7 +31,7 @@ sed -i \
   "$STAGE"/*.ts
 
 pass=true
-for script in test-analysis test-resolution test-integration test-questions test-market-feeds; do
+for script in test-analysis test-resolution test-integration test-questions test-market-feeds test-dexscreener; do
   echo ""
   echo "─── ${script} ───────────────────────────────────────────────"
   if ! node --experimental-strip-types "$STAGE/${script}.ts"; then

@@ -3,6 +3,7 @@ import 'server-only';
 import { classifyInput, looksLikeSymbol, slugify } from '@/lib/asset-input';
 import { canonicalIdFor } from '@/lib/canonical-assets';
 import { AppError } from '@/lib/errors';
+import { resolveFromDexScreener } from '@/services/dexscreener';
 import { SERVER_CONFIG } from '@/lib/server-config';
 import {
   fetchInfoByAddress,
@@ -28,6 +29,32 @@ import type { AssetSnapshot, CmcInfoItem, CmcMapItem, CmcQuoteItem } from '@/typ
  * Quotes are cached 60s with single-flight, so a warm repeat costs no request.
  */
 export async function resolveAsset(query: string): Promise<AssetSnapshot> {
+  try {
+    return await resolveFromCoinMarketCap(query);
+  } catch (err) {
+    // Keep CMC as the primary source. Only try DexScreener when CMC explicitly
+    // cannot resolve the asset; quota/config/upstream failures must remain visible
+    // instead of silently switching sources for otherwise-listed coins.
+    if (!(err instanceof AppError) || !['NOT_FOUND', 'INVALID_CONTRACT'].includes(err.code)) {
+      throw err;
+    }
+
+    try {
+      const dexAsset = await resolveFromDexScreener(query);
+      if (dexAsset) return dexAsset;
+    } catch (dexError) {
+      // A secondary provider outage must not turn a clean "not found" response
+      // into a new failure for the existing CMC flow. Keep details server-side.
+      console.warn('[resolve-asset] DexScreener fallback unavailable', {
+        query,
+        detail: dexError instanceof Error ? dexError.message : String(dexError)
+      });
+    }
+    throw err;
+  }
+}
+
+async function resolveFromCoinMarketCap(query: string): Promise<AssetSnapshot> {
   const kind = classifyInput(query);
   const { quote, info } = kind === 'address' ? await resolveByAddress(query) : await resolveByText(query);
   return normalize(quote, info);

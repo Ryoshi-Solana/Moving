@@ -168,7 +168,7 @@ function mapCmcError(httpStatus: number, status: CmcStatus | undefined, path: st
 
 type InfoMap = Record<string, CmcInfoItem | CmcInfoItem[]>;
 
-const QUOTES_PATH = '/v2/cryptocurrency/quotes/latest';
+const QUOTES_PATH = '/v3/cryptocurrency/quotes/latest';
 const LISTINGS_PATH = '/v3/cryptocurrency/listings/latest';
 
 export async function fetchQuotesById(id: number, convert = 'USD'): Promise<CmcQuoteItem> {

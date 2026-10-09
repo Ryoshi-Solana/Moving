@@ -85,8 +85,13 @@ export function AnalysisReport({ data }: { data: AnalyzeResponse }) {
 
       <div className="space-y-2 pt-1">
         <p className="max-w-readable text-[12px] leading-relaxed text-faint">{APP.disclaimer}</p>
-        <p className="tnum text-[11.5px] text-faint">
-          CoinMarketCap{asset.lastUpdated ? ` · updated ${relativeTime(asset.lastUpdated)}` : ''}
+        <p className="tnum flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] text-faint">
+          <span>{asset.dataSource ?? 'CoinMarketCap'}{asset.lastUpdated ? ` · updated ${relativeTime(asset.lastUpdated)}` : ''}</span>
+          {asset.dataSourceUrl ? (
+            <a href={asset.dataSourceUrl} target="_blank" rel="noreferrer noopener" className="text-muted transition-colors hover:text-mint">
+              View DEX pair ↗
+            </a>
+          ) : null}
         </p>
       </div>
     </article>

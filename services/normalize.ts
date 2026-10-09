@@ -59,7 +59,9 @@ export function normalize(item: CmcQuoteItem, info: CmcInfoItem | null): AssetSn
     numMarketPairs: item.num_market_pairs ?? null,
 
     currency: 'USD',
-    lastUpdated: quote.last_updated ?? item.last_updated ?? null
+    lastUpdated: quote.last_updated ?? item.last_updated ?? null,
+    dataSource: 'CoinMarketCap',
+    dataSourceUrl: null
   };
 }
 

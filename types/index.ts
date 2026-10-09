@@ -155,6 +155,10 @@ export interface AssetSnapshot {
 
   currency: string;
   lastUpdated: string | null;
+  /** Provider used for the normalized snapshot. Optional for legacy fixtures. */
+  dataSource?: 'CoinMarketCap' | 'DexScreener';
+  /** Direct market/pair URL for transparency, when the provider exposes one. */
+  dataSourceUrl?: string | null;
 }
 
 /** Normalized global market snapshot, used only by CONTEXT questions. */

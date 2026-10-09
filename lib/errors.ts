@@ -35,7 +35,7 @@ export const ERROR_COPY: Record<ApiErrorCode, { message: string; hint?: string; 
   },
   INVALID_CONTRACT: {
     message: "That doesn't appear to be a valid supported asset or contract address.",
-    hint: 'Contract lookups work for tokens listed on CoinMarketCap.',
+    hint: 'Try a token listed on CoinMarketCap or a contract with a searchable DexScreener market pair.',
     status: 404
   },
   RATE_LIMITED: {

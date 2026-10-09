@@ -20,6 +20,7 @@ import { getMarketFeeds } from '@/services/trending';
 
 let passed = 0;
 let failed = 0;
+let dexPairsForTest: unknown[] = [];
 
 function assert(label: string, cond: boolean, detail = ''): void {
   if (cond) {
@@ -44,7 +45,11 @@ type Responder = (url: URL) => { status: number; body: unknown } | Promise<{ sta
 function mockFetch(responder: Responder) {
   (globalThis as any).fetch = async (input: string | URL, _init?: RequestInit) => {
     const url = new URL(typeof input === 'string' ? input : input.toString());
-    const { status, body } = await responder(url);
+    // The secondary provider is isolated in these offline CMC tests. Dedicated
+    // DexScreener tests replace fetch with their own representative fixture.
+    const { status, body } = url.hostname === 'api.dexscreener.com'
+      ? { status: 200, body: { pairs: dexPairsForTest } }
+      : await responder(url);
     return {
       ok: status >= 200 && status < 300,
       status,
@@ -129,6 +134,7 @@ async function run() {
   });
   const bySymbol = await resolveAsset('PEPE');
   assert('resolves by exact symbol', bySymbol.symbol === 'PEPE');
+  assert('CMC remains the primary source for a listed asset', bySymbol.dataSource === 'CoinMarketCap');
 
   reset();
   mockFetch((url) => {
@@ -708,6 +714,35 @@ async function run() {
     const asset = await resolveAsset('NEWCOIN');
     assert('fallback: ticker missing from the directory still resolves via symbol lookup', asset.symbol === 'NEWCOIN');
     assert('fallback: costs map + symbol only (no slug, no info)', w.count('/map') === 1 && w.count('symbol=NEWCOIN') === 1 && w.count('slug=') === 0 && w.count('/info') === 0, w.calls.join(' | '));
+  }
+
+  // CMC cannot resolve a DEX-only ticker -> fallback preserves the same report flow.
+  reset();
+  {
+    dexPairsForTest = [{
+      chainId: 'solana',
+      dexId: 'raydium',
+      url: 'https://dexscreener.com/solana/dexonly-pair',
+      pairAddress: 'dexonly-pair',
+      baseToken: { address: 'DexOnlyContract1234567890123456789012', name: 'Dex Only Coin', symbol: 'DEXONLY' },
+      quoteToken: { address: 'USDC', name: 'USD Coin', symbol: 'USDC' },
+      priceUsd: '0.0025',
+      priceChange: { h1: 2.2, h24: 18.5 },
+      volume: { h24: 18000 },
+      liquidity: { usd: 62000 },
+      marketCap: 2200000,
+      fdv: 2500000,
+      info: { websites: [{ url: 'https://dexonly.example.org' }] }
+    }];
+    mockFetch((url) => {
+      if (url.pathname === '/v1/cryptocurrency/map') return { status: 200, body: envelope([]) };
+      if (url.pathname === '/v3/cryptocurrency/quotes/latest') return { status: 200, body: quotesEnvelope([]) };
+      return { status: 200, body: envelope({}) };
+    });
+    const dexOnly = await resolveAsset('DEXONLY');
+    assert('DexScreener fallback resolves a token absent from CMC', dexOnly.symbol === 'DEXONLY' && dexOnly.dataSource === 'DexScreener');
+    assert('DexScreener fallback preserves the selected pool URL', dexOnly.dataSourceUrl === 'https://dexscreener.com/solana/dexonly-pair');
+    dexPairsForTest = [];
   }
 
   // Directory unavailable -> analysis still works through the legacy lookup.

@@ -405,7 +405,7 @@ export function buildDataUsed(asset: AssetSnapshot, s: Signals): DataPoint[] {
   add(
     'Market cap 24h',
     formatPercent(asset.marketCapChange24h),
-    asset.marketCapChangeIsDerived ? 'derived, not reported by CMC' : undefined
+    asset.marketCapChangeIsDerived ? 'derived from price change, assuming supply is constant' : undefined
   );
   add('Volume / market cap', formatRatio(s.turnover), s.turnoverLevel === 'unknown' ? undefined : s.turnoverLevel);
   add('Price 7d', formatPercent(asset.percentChange7d));
