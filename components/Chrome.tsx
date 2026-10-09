@@ -1,4 +1,5 @@
 import Image from 'next/image';
+import Link from 'next/link';
 import { APP, PUMPFUN_URL, SOCIAL_LINKS } from '@/lib/config';
 import { XIcon } from '@/components/icons';
 import { FocusSearchButton } from '@/components/FocusSearchButton';
@@ -7,9 +8,9 @@ export function Navbar() {
   return (
     <header className="sticky top-0 z-20 border-b border-edge bg-void/85 backdrop-blur-md">
       <nav className="mx-auto flex h-14 max-w-5xl items-center justify-between px-5 sm:px-6">
-        <a href="/" className="group flex items-center" aria-label={`${APP.name} home`}>
+        <Link href="/" className="group flex items-center" aria-label={`${APP.name} home`}>
           <Image src="/moving-logo-clean.svg" alt="MOVING" width={148} height={34} priority className="h-8 w-auto" />
-        </a>
+        </Link>
         <div className="flex shrink-0 items-center gap-2">
           <a
             href={SOCIAL_LINKS.x}
