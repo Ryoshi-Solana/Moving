@@ -3,7 +3,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { APP } from '@/lib/config';
 
-const SITE_URL = 'https://moving-crypto.vercel.app';
+const SITE_URL = 'https://www.whymoving.fun';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
