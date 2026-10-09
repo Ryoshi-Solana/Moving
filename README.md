@@ -184,11 +184,13 @@ and the UI labels the result as partial or limited data.
 
 ### Tests
 
-`npm test` runs six offline suites:
+`npm test` runs eight offline suites:
 
 - **Analysis** — deterministic driver scoring, missing-data and no-data paths.
 - **Resolution** — input validation, address detection, normalization, formatting,
   explorer links, and ticker disambiguation.
+- **Server config** — invalid TTL/rate-limit values fall back safely.
+- **Public links** — untrusted hosts, non-HTTPS links, and generic homepages are rejected.
 - **Integration** — resolver and CMC client behavior against mocked upstream responses.
 - **Questions** — question/answer logic and its supported paths.
 - **Market feeds** — trending/gainers feed behavior.
