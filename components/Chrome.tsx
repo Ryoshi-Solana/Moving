@@ -1,43 +1,27 @@
-import { APP, SOCIAL_LINKS } from '@/lib/config';
-import { TelegramIcon, XIcon } from '@/components/icons';
+import Image from 'next/image';
+import { APP, PUMPFUN_URL } from '@/lib/config';
 import { FocusSearchButton } from '@/components/FocusSearchButton';
 
 export function Navbar() {
   return (
     <header className="sticky top-0 z-20 border-b border-edge bg-void/85 backdrop-blur-md">
       <nav className="mx-auto flex h-14 max-w-5xl items-center justify-between px-5 sm:px-6">
-        <a href="/" className="group flex items-center gap-2.5" aria-label={`${APP.name} home`}>
-          <span className="h-[9px] w-[9px] bg-mint shadow-[0_0_12px_rgba(0,229,160,0.55)]" />
-          <span className="tnum text-[12.5px] font-semibold tracking-[0.2em] text-ink">{APP.short}</span>
+        <a href="/" className="group flex items-center" aria-label={`${APP.name} home`}>
+          <Image src="/moving-logo-clean.svg" alt="MOVING" width={148} height={34} priority className="h-8 w-auto" />
         </a>
-        <SocialLinks />
+        <a
+          href={PUMPFUN_URL}
+          target="_blank"
+          rel="noreferrer noopener"
+          aria-label="Buy MOVING on Pump.fun"
+          className="inline-flex items-center gap-2 rounded-[3px] border border-mint/50 bg-mint px-3.5 py-2 text-[10px] font-bold tracking-[0.12em] text-void shadow-[0_0_20px_rgba(0,229,160,0.13)] transition-all duration-150 hover:border-[#7BFFE0] hover:bg-[#7BFFE0] hover:shadow-[0_0_28px_rgba(0,229,160,0.24)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mint focus-visible:ring-offset-2 focus-visible:ring-offset-void sm:px-4 sm:text-[11px]"
+        >
+          <Image src="/moving-mark.svg" alt="" aria-hidden="true" width={17} height={17} className="h-[17px] w-[17px]" />
+          <span>BUY $MOVING</span>
+          <span aria-hidden="true" className="ml-0.5 text-[15px] leading-none">↗</span>
+        </a>
       </nav>
     </header>
-  );
-}
-
-export function SocialLinks({ className = '' }: { className?: string }) {
-  return (
-    <div className={`flex items-center gap-0.5 ${className}`}>
-      <a
-        href={SOCIAL_LINKS.telegram}
-        target="_blank"
-        rel="noreferrer noopener"
-        aria-label="Telegram"
-        className="rounded-[2px] p-2 text-faint transition-colors duration-150 hover:text-ink"
-      >
-        <TelegramIcon className="h-[20px] w-[20px]" />
-      </a>
-      <a
-        href={SOCIAL_LINKS.x}
-        target="_blank"
-        rel="noreferrer noopener"
-        aria-label="X"
-        className="rounded-[2px] p-2 text-faint transition-colors duration-150 hover:text-ink"
-      >
-        <XIcon className="h-[20px] w-[20px]" />
-      </a>
-    </div>
   );
 }
 
@@ -91,10 +75,18 @@ export function Footer() {
         <div className="space-y-1.5">
           <p className="tnum text-[11.5px] font-semibold tracking-[0.2em] text-muted">{APP.short}</p>
           <p className="max-w-readable text-[12px] leading-relaxed text-faint">
-            Market data from CoinMarketCap. Not financial advice.
+            Market data from CoinMarketCap and DexScreener. Not financial advice.
           </p>
         </div>
-        <SocialLinks className="-mx-2" />
+        <a
+          href={PUMPFUN_URL}
+          target="_blank"
+          rel="noreferrer noopener"
+          className="inline-flex items-center gap-2 text-[10px] font-semibold tracking-[0.12em] text-mint transition-colors hover:text-ink"
+          aria-label="Buy MOVING on Pump.fun"
+        >
+          BUY $MOVING <span aria-hidden="true" className="text-[14px]">↗</span>
+        </a>
       </div>
     </footer>
   );
