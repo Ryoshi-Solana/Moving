@@ -3,7 +3,11 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { APP } from '@/lib/config';
 
+const SITE_URL = 'https://moving-crypto.vercel.app';
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
+  alternates: { canonical: '/' },
   title: 'Why is this coin moving?',
   description: APP.tagline,
   applicationName: APP.name,
@@ -11,6 +15,7 @@ export const metadata: Metadata = {
     title: 'Why is this coin moving?',
     description: APP.tagline,
     siteName: APP.short,
+    url: '/',
     type: 'website'
   },
   twitter: {
