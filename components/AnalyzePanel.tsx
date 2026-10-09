@@ -14,7 +14,7 @@ const SUGGESTIONS = ['BTC', 'SOL', 'PEPE', 'BONK'];
 
 /**
  * Owns the entire search → analyze → result flow.
- * `example` renders only while idle, so the demo gives way to real results.
+ * No analysis is shown until the user requests a specific coin.
  */
 export function AnalyzePanel() {
   const [input, setInput] = useState('');
