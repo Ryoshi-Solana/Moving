@@ -1,6 +1,6 @@
 import type { MetadataRoute } from 'next';
 
-const SITE_URL = 'https://moving-crypto.vercel.app';
+const SITE_URL = 'https://www.whymoving.fun';
 
 export default function robots(): MetadataRoute.Robots {
   return {
