@@ -9,23 +9,23 @@ const bracesLock = {
   },
 };
 
-function bracesReport(overrides = {}) {
+function bracesVulnerability(overrides = {}) {
   return {
-    vulnerabilities: {
-      braces: {
+    name: "braces",
+    severity: "high",
+    via: [
+      {
         name: "braces",
-        severity: "high",
-        via: [
-          {
-            name: "braces",
-            url: KNOWN_BRACES_ADVISORY,
-          },
-        ],
-        nodes: ["node_modules/braces"],
-        ...overrides,
+        url: KNOWN_BRACES_ADVISORY,
       },
-    },
+    ],
+    nodes: ["node_modules/braces"],
+    ...overrides,
   };
+}
+
+function bracesReport() {
+  return { vulnerabilities: { braces: bracesVulnerability() } };
 }
 
 test("clean audit report passes", () => {
@@ -42,6 +42,43 @@ test("only the exact known dev-only braces advisory is warned and allowed", () =
   );
 });
 
+test("transitive high findings are allowed only when every path leads to braces", () => {
+  const names = ["braces", "micromatch", "chokidar", "tailwindcss"];
+  const vulnerabilities = {
+    braces: bracesVulnerability(),
+    micromatch: {
+      name: "micromatch",
+      severity: "high",
+      via: ["braces"],
+      nodes: ["node_modules/micromatch"],
+    },
+    chokidar: {
+      name: "chokidar",
+      severity: "high",
+      via: ["braces"],
+      nodes: ["node_modules/chokidar"],
+    },
+    tailwindcss: {
+      name: "tailwindcss",
+      severity: "high",
+      via: ["chokidar", "micromatch"],
+      nodes: ["node_modules/tailwindcss"],
+    },
+  };
+  const lockfile = {
+    packages: Object.fromEntries(
+      names.map((name) => [
+        "node_modules/" + name,
+        { version: name === "braces" ? "3.0.3" : "1.0.0", dev: true },
+      ]),
+    ),
+  };
+  assert.equal(
+    classifyAuditReport({ vulnerabilities }, lockfile).status,
+    "allowlisted-warning",
+  );
+});
+
 test("the braces advisory is not allowed when braces is a production dependency", () => {
   const productionLock = {
     packages: {
@@ -54,18 +91,25 @@ test("the braces advisory is not allowed when braces is a production dependency"
   );
 });
 
-test("a different high-severity advisory fails", () => {
+test("a different advisory on a transitive package fails", () => {
   const report = {
     vulnerabilities: {
-      braces: {
-        name: "braces",
+      braces: bracesVulnerability(),
+      micromatch: {
+        name: "micromatch",
         severity: "high",
-        via: [{ name: "braces", url: "https://example.com/other-advisory" }],
-        nodes: ["node_modules/braces"],
+        via: ["braces", "other"],
+        nodes: ["node_modules/micromatch"],
       },
     },
   };
-  assert.equal(classifyAuditReport(report, bracesLock).status, "blocked");
+  const lockfile = {
+    packages: {
+      "node_modules/braces": { version: "3.0.3", dev: true },
+      "node_modules/micromatch": { version: "4.0.8", dev: true },
+    },
+  };
+  assert.equal(classifyAuditReport(report, lockfile).status, "blocked");
 });
 
 test("any additional high/critical finding fails", () => {
