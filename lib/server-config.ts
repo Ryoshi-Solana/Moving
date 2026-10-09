@@ -1,9 +1,6 @@
 /**
- * Server-side tunables.
- *
- * Kept out of lib/config.ts because that file is imported by client components
- * (for SOCIAL_LINKS and APP copy) — there is no reason to ship process.env
- * lookups to the browser, even harmless ones.
+ * Server-side tunables only. Never place secrets here in a module imported by
+ * client components; public destinations live separately in lib/config.ts.
  */
 export const SERVER_CONFIG = {
   quoteTtlSeconds: Number(process.env.CMC_CACHE_TTL_SECONDS ?? 60),
