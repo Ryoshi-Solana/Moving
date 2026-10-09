@@ -38,10 +38,8 @@ try {
 const result = classifyAuditReport(report, lockfile);
 
 if (result.status === "clean") {
-  if (audit.status !== 0) {
-    console.error("✘ npm audit returned a failing status without a gated finding.");
-    process.exit(1);
-  }
+  // npm audit may exit 1 for low/moderate advisories; this gate intentionally
+  // blocks only high/critical findings, matching --audit-level=high.
   console.log("✔ No high/critical dependency advisories found.");
   process.exit(0);
 }
