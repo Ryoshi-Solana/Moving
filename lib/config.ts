@@ -2,7 +2,7 @@ import { verifiedPublicUrl } from '@/lib/public-links';
 
 /**
  * Public brand configuration. Generic homepages must never masquerade as
- * official project destinations. Set these public URLs in Vercel after launch.
+ * official project destinations. Public URLs may be overridden in Vercel.
  */
 export const PUMPFUN_URL = verifiedPublicUrl(
   process.env.NEXT_PUBLIC_PUMPFUN_URL,
@@ -11,7 +11,7 @@ export const PUMPFUN_URL = verifiedPublicUrl(
 
 export const SOCIAL_LINKS = {
   x: verifiedPublicUrl(
-    process.env.NEXT_PUBLIC_X_URL,
+    process.env.NEXT_PUBLIC_X_URL || 'https://x.com/why_moving',
     ['x.com', 'www.x.com', 'twitter.com', 'www.twitter.com']
   )
 } as const;
