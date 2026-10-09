@@ -195,7 +195,7 @@ and the UI labels the result as partial or limited data.
 - **DexScreener** — fallback lookup and pair/token selection.
 
 The test runner uses Node's built-in TypeScript stripping (`--experimental-strip-types`),
-so use Node ≥22.6. No network or API credits are required for these offline suites.
+so use Node ≥22.13. No network or API credits are required for these offline suites.
 
 ---
 
@@ -269,7 +269,7 @@ Not yet verified — needs a machine with network access and a real key:
 ## Deployment
 
 ```bash
-npm run build && npm start   # Node 22.6+ recommended/required by the test runner
+npm run build && npm start   # Node 22.13+ recommended/required
 ```
 
 Or push to GitHub and import at <https://vercel.com/new>. Zero config beyond
