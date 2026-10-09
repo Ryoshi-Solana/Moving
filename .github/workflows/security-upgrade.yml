@@ -6,7 +6,11 @@ on:
       - security/next16-upgrade
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: security-upgrade-validation
+  cancel-in-progress: true
 
 jobs:
   validate-upgrade:
@@ -21,6 +25,8 @@ jobs:
           cache: npm
       - name: Clean install from lockfile
         run: npm ci
+      - name: Apply non-breaking dependency security fixes
+        run: npm audit fix
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
       - name: Run tests
@@ -31,3 +37,14 @@ jobs:
         run: npm run lint
       - name: Production build
         run: npm run build
+      - name: Commit lockfile security fixes
+        run: |
+          if ! git diff --quiet -- package-lock.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add package-lock.json
+            git commit -m "fix: patch transitive dependency vulnerabilities"
+            git push origin HEAD:security/next16-upgrade
+          else
+            echo "Lockfile already up to date."
+          fi
