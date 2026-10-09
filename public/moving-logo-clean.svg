@@ -5,7 +5,6 @@
       <stop offset="0" stop-color="#00FF87"/><stop offset=".42" stop-color="#00E5D4"/><stop offset=".72" stop-color="#D9FFF7"/><stop offset="1" stop-color="#FFFFFF"/>
     </linearGradient>
     <linearGradient id="side" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#00BFA8"/><stop offset="1" stop-color="#063A3A"/></linearGradient>
-    <linearGradient id="letters" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#BEEBE5"/></linearGradient>
     <filter id="glow" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2.6"/></filter>
   </defs>
   <g transform="translate(8 6) scale(.95)">
@@ -14,6 +13,6 @@
     <path d="M18 124 L43 124 L60 66 L45 92 Z" fill="url(#side)"/>
     <path d="M48 55 Q55 38 67 55 L88 87 Q94 96 102 87 L143 45 L130 45 L162 13 L156 58 L145 49 L110 91 Q94 111 77 89 L60 66" fill="none" stroke="#FFFFFF" stroke-opacity=".7" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
-  <text x="178" y="119" font-family="Montserrat, Arial, Helvetica, sans-serif" font-size="94" font-weight="800" letter-spacing="-3.5" fill="url(#letters)">MOVING</text>
+  <text x="178" y="119" font-family="Montserrat, Arial, Helvetica, sans-serif" font-size="94" font-weight="800" letter-spacing="-3.5" fill="#F6FFFC">MOVING</text>
   <path d="M299 44 L315 44 L300 59 Z" fill="#00FF87" opacity=".95"/>
 </svg>
