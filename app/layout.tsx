@@ -16,12 +16,21 @@ export const metadata: Metadata = {
     description: APP.tagline,
     siteName: APP.short,
     url: '/',
-    type: 'website'
+    type: 'website',
+    images: [
+      {
+        url: '/moving-x-banner-1500x500.jpg',
+        width: 1500,
+        height: 500,
+        alt: 'MOVING — Why is this coin moving?'
+      }
+    ]
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Why is this coin moving?',
-    description: APP.tagline
+    description: APP.tagline,
+    images: ['/moving-x-banner-1500x500.jpg']
   },
   robots: { index: true, follow: true }
 };
