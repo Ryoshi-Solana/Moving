@@ -1,12 +1,19 @@
+import { verifiedPublicUrl } from '@/lib/public-links';
+
 /**
- * Public brand configuration.
- * Set SOCIAL_LINKS.x to the project's official profile URL when available.
- * Replace PUMPFUN_URL with the token's exact Pump.fun page after launch.
+ * Public brand configuration. Generic homepages must never masquerade as
+ * official project destinations. Set these public URLs in Vercel after launch.
  */
-export const PUMPFUN_URL = 'https://pump.fun/';
+export const PUMPFUN_URL = verifiedPublicUrl(
+  process.env.NEXT_PUBLIC_PUMPFUN_URL,
+  ['pump.fun', 'www.pump.fun']
+);
 
 export const SOCIAL_LINKS = {
-  x: 'https://x.com/'
+  x: verifiedPublicUrl(
+    process.env.NEXT_PUBLIC_X_URL,
+    ['x.com', 'www.x.com', 'twitter.com', 'www.twitter.com']
+  )
 } as const;
 
 export const APP = {

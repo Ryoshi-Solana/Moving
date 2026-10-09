@@ -12,6 +12,7 @@ export function Navbar() {
           <Image src="/moving-logo-clean.svg" alt="MOVING" width={148} height={34} priority className="h-8 w-auto" />
         </Link>
         <div className="flex shrink-0 items-center gap-2">
+          {SOCIAL_LINKS.x ? (
           <a
             href={SOCIAL_LINKS.x}
             target="_blank"
@@ -22,6 +23,8 @@ export function Navbar() {
           >
             <XIcon className="h-[18px] w-[18px]" />
           </a>
+          ) : null}
+          {PUMPFUN_URL ? (
           <a
             href={PUMPFUN_URL}
             target="_blank"
@@ -33,6 +36,7 @@ export function Navbar() {
             <span>BUY $MOVING</span>
             <span aria-hidden="true" className="ml-0.5 text-[15px] leading-none">↗</span>
           </a>
+          ) : null}
         </div>
       </nav>
     </header>
@@ -92,7 +96,9 @@ export function Footer() {
             Market data from CoinMarketCap and DexScreener. Not financial advice.
           </p>
         </div>
+        {(SOCIAL_LINKS.x || PUMPFUN_URL) ? (
         <div className="flex items-center gap-4">
+          {SOCIAL_LINKS.x ? (
           <a
             href={SOCIAL_LINKS.x}
             target="_blank"
@@ -103,6 +109,8 @@ export function Footer() {
           >
             <XIcon className="h-[18px] w-[18px]" />
           </a>
+          ) : null}
+          {PUMPFUN_URL ? (
           <a
             href={PUMPFUN_URL}
             target="_blank"
@@ -112,7 +120,9 @@ export function Footer() {
           >
             BUY $MOVING <span aria-hidden="true" className="text-[14px]">↗</span>
           </a>
+          ) : null}
         </div>
+        ) : null}
       </div>
     </footer>
   );

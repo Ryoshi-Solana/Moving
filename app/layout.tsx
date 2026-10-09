@@ -3,7 +3,11 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { APP } from '@/lib/config';
 
+const SITE_URL = 'https://moving-crypto.vercel.app';
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
+  alternates: { canonical: '/' },
   title: 'Why is this coin moving?',
   description: APP.tagline,
   applicationName: APP.name,
@@ -11,12 +15,22 @@ export const metadata: Metadata = {
     title: 'Why is this coin moving?',
     description: APP.tagline,
     siteName: APP.short,
-    type: 'website'
+    url: '/',
+    type: 'website',
+    images: [
+      {
+        url: '/moving-x-banner-1500x500.jpg',
+        width: 1500,
+        height: 500,
+        alt: 'MOVING — Why is this coin moving?'
+      }
+    ]
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Why is this coin moving?',
-    description: APP.tagline
+    description: APP.tagline,
+    images: ['/moving-x-banner-1500x500.jpg']
   },
   robots: { index: true, follow: true }
 };

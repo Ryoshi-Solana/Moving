@@ -20,10 +20,12 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: Request): Promise<NextResponse<AnalyzeResponse | ApiErrorBody>> {
   const started = Date.now();
   let query = '';
+  let retryAfterSeconds: number | null = null;
 
   try {
     const limit = checkRateLimit(clientKeyFromHeaders(request.headers));
     if (!limit.ok) {
+      retryAfterSeconds = limit.retryAfterSeconds;
       throw new AppError('RATE_LIMITED', { detail: `retry in ${limit.retryAfterSeconds}s` });
     }
 
@@ -67,7 +69,10 @@ export async function GET(request: Request): Promise<NextResponse<AnalyzeRespons
 
     return NextResponse.json(body, {
       status: error.status,
-      headers: error.code === 'RATE_LIMITED' ? { 'Retry-After': '30' } : undefined
+      headers: {
+        'Cache-Control': 'no-store',
+        ...(error.code === 'RATE_LIMITED' ? { 'Retry-After': String(retryAfterSeconds ?? 30) } : {})
+      }
     });
   }
 }

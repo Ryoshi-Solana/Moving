@@ -20,7 +20,7 @@ Get a free key at <https://pro.coinmarketcap.com/signup>. The free "Basic" plan
 is enough for everything here.
 
 ```bash
-npm test          # six offline suites, no network, no API credits
+npm test          # eight offline suites, no network, no API credits
 npm run typecheck # tsc --noEmit
 npm run build     # production build
 ```
@@ -34,7 +34,10 @@ npm run build     # production build
 | `CMC_API_KEY` | Yes | CoinMarketCap Pro API key. Server-side only. |
 | `CMC_BASE_URL` | No | Defaults to `https://pro-api.coinmarketcap.com`. Point at `https://sandbox-api.coinmarketcap.com` to develop without spending credits. |
 | `CMC_CACHE_TTL_SECONDS` | No | Quote cache lifetime. Default `60`. |
-| `RATE_LIMIT_PER_MINUTE` | No | Requests per IP per minute. Default `20`. |
+| `RATE_LIMIT_PER_MINUTE` | No | Requests per IP per minute. Default `20`; invalid values safely fall back to the default. |
+| `CMC_INFO_LOOKUPS` | No | Set to `true` to fetch website metadata once per asset cache window. Off by default to conserve API calls. |
+| `NEXT_PUBLIC_X_URL` | No | Exact official X/Twitter profile URL on HTTPS; generic homepages are ignored. |
+| `NEXT_PUBLIC_PUMPFUN_URL` | No | Exact MOVING token page on Pump.fun on HTTPS; generic homepages are ignored. |
 
 **Never prefix the key with `NEXT_PUBLIC_`.** It is read only inside
 `services/coinmarketcap.ts`, which begins with `import 'server-only'` — if any
@@ -54,6 +57,12 @@ the key to the browser.
 
 Locally the same value goes in `.env.local`, which is gitignored.
 
+Before promoting the site publicly, set `NEXT_PUBLIC_X_URL` and
+`NEXT_PUBLIC_PUMPFUN_URL` in Vercel using the exact official profile and token
+page. These are public URLs, not secrets. Because `NEXT_PUBLIC_*` values are
+embedded during the build, redeploy after changing them. The related buttons
+stay hidden while a valid specific destination is not configured.
+
 ---
 
 ## Project structure
@@ -63,7 +72,10 @@ app/
   layout.tsx              root layout, metadata, backdrop layers
   page.tsx                landing page composition
   globals.css             design tokens, grid/noise backdrop
-  api/analyze/route.ts    the only server endpoint
+  api/analyze/route.ts    core analysis endpoint
+  api/context/route.ts    optional BTC/global context
+  api/discover/route.ts   optional asset discovery
+  api/trending/route.ts   optional trending/gainers feeds
 components/
   AnalyzePanel.tsx        client: search → loading → result/error
   AnalysisReport.tsx      the full diagnosis view
@@ -98,31 +110,38 @@ in the navbar and footer; Telegram is intentionally omitted.
 
 ## CoinMarketCap endpoints used
 
-All three are available on the free Basic plan.
+All market data is fetched through the server-only CMC client. Access depends on
+the plan assigned to your API key. Optional feeds deliberately degrade when an
+endpoint is unavailable; they cannot block a user's core asset analysis.
 
-| Endpoint | Used for | Cache |
+| Endpoint | Purpose | Cache |
 | --- | --- | --- |
-| `GET /v2/cryptocurrency/quotes/latest` | Price, percent changes, market cap, volume, volume change, supply, market pairs. Called with `id`, `symbol`, or `slug`. | 60s |
-| `GET /v2/cryptocurrency/info` | Logo, category, chain, contract addresses, website. Also does contract-address resolution via the `address` parameter. | 24h |
-| `GET /v1/cryptocurrency/map` | Fuzzy name search fallback, sorted by rank. One call serves every search on the instance. | 6h |
+| `GET /v3/cryptocurrency/quotes/latest` | Quotes, price changes, market cap, volume, supply and market-pair count. | 60s |
+| `GET /v2/cryptocurrency/info` | Logo, category, chain, contracts, website and contract-address resolution. | 24h |
+| `GET /v1/cryptocurrency/map` | Cached asset ID/name/symbol directory for ticker and name resolution. | 24h |
+| `GET /v1/global-metrics/quotes/latest` | Optional whole-market context such as total market cap and BTC dominance. | 120s |
+| `GET /v3/cryptocurrency/listings/latest` | Shared top-100 market-cap pool for trending/gainers and exploration suggestions. | 300s |
 
-A typical search costs **1–2 credits**. Repeat searches inside the cache window
-cost zero. Concurrent identical searches are collapsed into a single upstream
-request (`lib/cache.ts` single-flight), so a burst of traffic on one trending
-coin does not multiply into a burst of API calls.
+Responses are cached in memory per serverless instance, and concurrent identical
+requests share one upstream request. Caching reduces duplicate requests but does
+not guarantee a fixed cost or quota; monitor current usage in the CMC dashboard.
 
 ### Resolution order
 
-1. Input matches an EVM (`0x…40 hex`), Solana (base58, 32–44 chars), or Tron
-   address shape → `info?address=…`, then quotes by the returned id.
-2. Ticker-shaped input → `quotes/latest?symbol=…`.
-3. Slugified name (`Shiba Inu` → `shiba-inu`) → `quotes/latest?slug=…`.
-4. Fuzzy match against the cached map: exact name, then prefix, then substring,
-   each ranked by CMC rank.
+1. EVM (`0x…40 hex`), Solana (base58, 32–44 chars), or Tron address shape →
+   CMC contract lookup, then quotes by returned CMC ID.
+2. BTC, ETH and SOL use pinned canonical IDs to avoid ambiguous ticker lookups.
+3. Other tickers and names resolve against the cached active-asset directory,
+   prioritizing exact symbol/slug/name matches and then prefix/substring matches.
+4. If the directory is unavailable or has no match, a legacy symbol/slug quote
+   lookup is attempted.
+5. If CMC explicitly cannot resolve an asset, DexScreener is a best-effort
+   fallback for DEX-only tokens. Configuration, quota and upstream failures
+   are not silently disguised as a missing token.
 
-Tickers collide constantly — dozens of tokens are called PEPE. When a symbol
-lookup returns several assets, `pickBest` sorts by market cap, then 24h volume,
-then rank, so the search lands on the one the user meant.
+Ticker collisions are real (dozens of tokens are called PEPE). MOVING uses the
+best-ranked active CMC match for ambiguous symbol/name searches. Check the token
+identity and contract displayed in the report before relying on a result.
 
 ---
 
@@ -184,11 +203,13 @@ and the UI labels the result as partial or limited data.
 
 ### Tests
 
-`npm test` runs six offline suites:
+`npm test` runs eight offline suites:
 
 - **Analysis** — deterministic driver scoring, missing-data and no-data paths.
 - **Resolution** — input validation, address detection, normalization, formatting,
   explorer links, and ticker disambiguation.
+- **Server config** — invalid TTL/rate-limit values fall back safely.
+- **Public links** — untrusted hosts, non-HTTPS links, and generic homepages are rejected.
 - **Integration** — resolver and CMC client behavior against mocked upstream responses.
 - **Questions** — question/answer logic and its supported paths.
 - **Market feeds** — trending/gainers feed behavior.
@@ -219,7 +240,7 @@ Upstash — it is one small module behind one function.
 
 ## Known limitations
 
-**From the CoinMarketCap Basic plan:**
+**Market data and API plan:**
 
 1. **No market-cap change field.** CMC does not report one. The app infers it
    from the price change at constant supply. Because it is not a CMC metric, it
@@ -235,9 +256,9 @@ Upstash — it is one small module behind one function.
 5. **Contract lookups only cover listed tokens.** A token CMC has not indexed
    returns the invalid-contract state, however real the contract is.
 6. **Quotes are snapshots**, typically a minute or so old.
-7. **Credit limits.** The free plan allows 10k credits/month and a handful of
-   calls per minute. Caching keeps normal traffic well inside that; a viral
-   spike would need a paid plan.
+7. **Credit limits.** API budgets and rate limits depend on your current CMC plan
+   and may change. Caching reduces duplicate requests but cannot guarantee a
+   particular monthly spend.
 
 **By design:**
 
@@ -249,22 +270,16 @@ Upstash — it is one small module behind one function.
 
 ## Validation status
 
-Verified by running it:
+The CI workflow for pushes to `main` and pull requests into `main` runs
+`npm ci`, a blocking high-severity audit of production dependencies, offline
+tests, lint, TypeScript checking, and a production build. A full dependency
+audit is reported but remains non-blocking while the upstream `braces`
+advisory described in [SECURITY.md](SECURITY.md) has no official patched release.
 
-| Check | Result |
-| --- | --- |
-| `npm test` (6 offline suites) | not re-run in this audit yet |
-| Strict typecheck of `analysis/ lib/ services/ types/ scripts/` | pass, 0 errors |
-| Server-side render of every component + state (60 assertions) | pass |
-
-Not yet verified — needs a machine with network access and a real key:
-
-- `npm install`, `npm run build`, `npm run dev`
-- `tsc` over the `.tsx` files (needs `@types/react`)
-- Live CoinMarketCap responses
-- Visual layout in a browser at desktop and mobile widths
-
----
+Offline tests do not consume API credits and cannot prove the production CMC key
+is valid. Before public promotion, confirm a regular lookup (for example BTC)
+and a supported token-address lookup on the deployed website, and set the
+official X and Pump.fun URLs in Vercel.
 
 ## Deployment
 
