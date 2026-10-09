@@ -20,7 +20,7 @@ Get a free key at <https://pro.coinmarketcap.com/signup>. The free "Basic" plan
 is enough for everything here.
 
 ```bash
-npm test          # analysis + resolution suites, no network, no API credits
+npm test          # six offline suites, no network, no API credits
 npm run typecheck # tsc --noEmit
 npm run build     # production build
 ```
@@ -184,23 +184,18 @@ and the UI labels the result as partial or limited data.
 
 ### Tests
 
-`npm test` runs three offline suites — 101 checks in total:
+`npm test` runs six offline suites:
 
-- **Analysis** (10 scenarios) — each asserts the driver the engine must pick,
-  covering every scenario in the product spec plus the missing-data and no-data
-  paths.
-- **Resolution** (56 checks) — input validation, address detection, XSS and
-  injection-shaped input, CMC payload normalization, `NaN`/`Infinity` handling,
-  number formatting, explorer links, and ticker disambiguation.
-- **Integration** (35 checks) — the real CMC client and resolver driven against
-  a mocked upstream that returns genuine CMC envelope shapes. Covers the full
-  search → data → analysis → diagnosis path for PEPE/BTC/SOL, slug and
-  contract-address resolution, every error mapping (400/401/429/500/timeout),
-  missing-data handling, API-key confinement, cache hits, request collapsing,
-  and rate limiting.
+- **Analysis** — deterministic driver scoring, missing-data and no-data paths.
+- **Resolution** — input validation, address detection, normalization, formatting,
+  explorer links, and ticker disambiguation.
+- **Integration** — resolver and CMC client behavior against mocked upstream responses.
+- **Questions** — question/answer logic and its supported paths.
+- **Market feeds** — trending/gainers feed behavior.
+- **DexScreener** — fallback lookup and pair/token selection.
 
-All three run on plain Node ≥22 via type stripping. No network, no API credits,
-no test framework.
+The test runner uses Node's built-in TypeScript stripping (`--experimental-strip-types`),
+so use Node ≥22.6. No network or API credits are required for these offline suites.
 
 ---
 
@@ -258,7 +253,7 @@ Verified by running it:
 
 | Check | Result |
 | --- | --- |
-| `npm test` (101 checks, 3 suites) | pass |
+| `npm test` (6 offline suites) | not re-run in this audit yet |
 | Strict typecheck of `analysis/ lib/ services/ types/ scripts/` | pass, 0 errors |
 | Server-side render of every component + state (60 assertions) | pass |
 
@@ -274,7 +269,7 @@ Not yet verified — needs a machine with network access and a real key:
 ## Deployment
 
 ```bash
-npm run build && npm start   # anywhere Node 18.17+ runs
+npm run build && npm start   # Node 22.6+ recommended/required by the test runner
 ```
 
 Or push to GitHub and import at <https://vercel.com/new>. Zero config beyond
