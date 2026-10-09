@@ -1,9 +1,13 @@
 /**
  * Public brand configuration.
- * Before launching the token, replace the placeholder Pump.fun homepage URL
- * below with the actual $MOVING token page URL.
+ * Set SOCIAL_LINKS.x to the project's official profile URL when available.
+ * Replace PUMPFUN_URL with the token's exact Pump.fun page after launch.
  */
 export const PUMPFUN_URL = 'https://pump.fun/';
+
+export const SOCIAL_LINKS = {
+  x: 'https://x.com/'
+} as const;
 
 export const APP = {
   name: 'Why is this coin moving?',

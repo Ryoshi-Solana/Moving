@@ -2,14 +2,6 @@ interface IconProps {
   className?: string;
 }
 
-export function TelegramIcon({ className = 'h-4 w-4' }: IconProps) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
-      <path d="M21.84 4.42 18.7 19.2c-.24 1.05-.86 1.31-1.74.82l-4.82-3.55-2.32 2.24c-.26.26-.48.48-.98.48l.35-4.93 8.98-8.11c.39-.35-.09-.54-.6-.19L5.48 13.03.7 11.54c-1.04-.32-1.06-1.04.22-1.54L20.5 2.9c.86-.32 1.62.2 1.34 1.52Z" />
-    </svg>
-  );
-}
-
 export function XIcon({ className = 'h-4 w-4' }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">

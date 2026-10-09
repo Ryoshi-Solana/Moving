@@ -1,5 +1,4 @@
 import { AnalyzePanel } from '@/components/AnalyzePanel';
-import { ExampleAnalysis } from '@/components/ExampleAnalysis';
 import { FinalCta, Footer, HowItWorks, Navbar } from '@/components/Chrome';
 import { TrendingTicker } from '@/components/TrendingTicker';
 import { APP } from '@/lib/config';
@@ -27,7 +26,7 @@ export default function HomePage() {
           </p>
 
           <div className="mt-10 sm:mt-11">
-            <AnalyzePanel example={<ExampleAnalysis />} />
+            <AnalyzePanel />
           </div>
         </section>
 

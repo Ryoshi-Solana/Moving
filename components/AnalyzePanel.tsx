@@ -14,9 +14,9 @@ const SUGGESTIONS = ['BTC', 'SOL', 'PEPE', 'BONK'];
 
 /**
  * Owns the entire search → analyze → result flow.
- * `example` renders only while idle, so the demo gives way to real results.
+ * No analysis is shown until the user requests a specific coin.
  */
-export function AnalyzePanel({ example }: { example?: React.ReactNode }) {
+export function AnalyzePanel() {
   const [input, setInput] = useState('');
   const [status, setStatus] = useState<Status>('idle');
   const [result, setResult] = useState<AnalyzeResponse | null>(null);
@@ -168,7 +168,11 @@ export function AnalyzePanel({ example }: { example?: React.ReactNode }) {
             <Investigation key={result.asset.id} asset={result.asset} analysis={result.analysis} />
           </>
         ) : null}
-        {status === 'idle' ? example : null}
+        {status === 'idle' ? (
+          <p className="max-w-readable text-[12.5px] leading-relaxed text-faint">
+            Your analysis will appear here after you search for a coin.
+          </p>
+        ) : null}
       </div>
     </div>
   );

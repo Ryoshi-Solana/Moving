@@ -1,5 +1,6 @@
 import Image from 'next/image';
-import { APP, PUMPFUN_URL } from '@/lib/config';
+import { APP, PUMPFUN_URL, SOCIAL_LINKS } from '@/lib/config';
+import { XIcon } from '@/components/icons';
 import { FocusSearchButton } from '@/components/FocusSearchButton';
 
 export function Navbar() {
@@ -9,17 +10,29 @@ export function Navbar() {
         <a href="/" className="group flex items-center" aria-label={`${APP.name} home`}>
           <Image src="/moving-logo-clean.svg" alt="MOVING" width={148} height={34} priority className="h-8 w-auto" />
         </a>
-        <a
-          href={PUMPFUN_URL}
-          target="_blank"
-          rel="noreferrer noopener"
-          aria-label="Buy MOVING on Pump.fun"
-          className="inline-flex items-center gap-2 rounded-[3px] border border-mint/50 bg-mint px-3.5 py-2 text-[10px] font-bold tracking-[0.12em] text-void shadow-[0_0_20px_rgba(0,229,160,0.13)] transition-all duration-150 hover:border-[#7BFFE0] hover:bg-[#7BFFE0] hover:shadow-[0_0_28px_rgba(0,229,160,0.24)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mint focus-visible:ring-offset-2 focus-visible:ring-offset-void sm:px-4 sm:text-[11px]"
-        >
-          <Image src="/moving-mark.svg" alt="" aria-hidden="true" width={17} height={17} className="h-[17px] w-[17px]" />
-          <span>BUY $MOVING</span>
-          <span aria-hidden="true" className="ml-0.5 text-[15px] leading-none">↗</span>
-        </a>
+        <div className="flex shrink-0 items-center gap-2">
+          <a
+            href={SOCIAL_LINKS.x}
+            target="_blank"
+            rel="noreferrer noopener"
+            aria-label="MOVING on X"
+            title="X / Twitter"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-[3px] border border-edge text-muted transition-colors duration-150 hover:border-mint/50 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mint focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+          >
+            <XIcon className="h-[18px] w-[18px]" />
+          </a>
+          <a
+            href={PUMPFUN_URL}
+            target="_blank"
+            rel="noreferrer noopener"
+            aria-label="Buy MOVING on Pump.fun"
+            className="inline-flex items-center gap-2 rounded-[3px] border border-mint/50 bg-mint px-3.5 py-2 text-[10px] font-bold tracking-[0.12em] text-void shadow-[0_0_20px_rgba(0,229,160,0.13)] transition-all duration-150 hover:border-[#7BFFE0] hover:bg-[#7BFFE0] hover:shadow-[0_0_28px_rgba(0,229,160,0.24)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mint focus-visible:ring-offset-2 focus-visible:ring-offset-void sm:px-4 sm:text-[11px]"
+          >
+            <Image src="/moving-mark.svg" alt="" aria-hidden="true" width={17} height={17} className="h-[17px] w-[17px]" />
+            <span>BUY $MOVING</span>
+            <span aria-hidden="true" className="ml-0.5 text-[15px] leading-none">↗</span>
+          </a>
+        </div>
       </nav>
     </header>
   );
@@ -78,15 +91,27 @@ export function Footer() {
             Market data from CoinMarketCap and DexScreener. Not financial advice.
           </p>
         </div>
-        <a
-          href={PUMPFUN_URL}
-          target="_blank"
-          rel="noreferrer noopener"
-          className="inline-flex items-center gap-2 text-[10px] font-semibold tracking-[0.12em] text-mint transition-colors hover:text-ink"
-          aria-label="Buy MOVING on Pump.fun"
-        >
-          BUY $MOVING <span aria-hidden="true" className="text-[14px]">↗</span>
-        </a>
+        <div className="flex items-center gap-4">
+          <a
+            href={SOCIAL_LINKS.x}
+            target="_blank"
+            rel="noreferrer noopener"
+            aria-label="MOVING on X"
+            title="X / Twitter"
+            className="rounded-[3px] p-2 text-muted transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mint"
+          >
+            <XIcon className="h-[18px] w-[18px]" />
+          </a>
+          <a
+            href={PUMPFUN_URL}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="inline-flex items-center gap-2 text-[10px] font-semibold tracking-[0.12em] text-mint transition-colors hover:text-ink"
+            aria-label="Buy MOVING on Pump.fun"
+          >
+            BUY $MOVING <span aria-hidden="true" className="text-[14px]">↗</span>
+          </a>
+        </div>
       </div>
     </footer>
   );
