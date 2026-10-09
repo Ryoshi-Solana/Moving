@@ -24,12 +24,9 @@ jobs:
         run: npm ci
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
-      - name: Report all dependency advisories
-        # Full audit currently reports an upstream braces advisory in dev tooling.
-        # SECURITY.md explains the limitation; the production-only audit blocks.
-        continue-on-error: true
-        run: npm audit --audit-level=high
-      - name: Run offline test suites
+      - name: Audit all dependencies (narrow known-advisory exception)
+        run: npm run audit:dependencies
+      - name: Run offline test suites and audit-policy tests
         run: npm test
       - name: Lint
         run: npm run lint
