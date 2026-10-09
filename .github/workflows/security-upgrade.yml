@@ -23,12 +23,12 @@ jobs:
         with:
           node-version: 22.13.0
           cache: npm
-      - name: Clean install from lockfile
-        run: npm ci
-      - name: Apply non-breaking dependency security fixes
-        run: npm audit fix
+      - name: Resolve patched dependency tree
+        run: npm install
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
+      - name: Audit all dependencies
+        run: npm audit --audit-level=high
       - name: Run tests
         run: npm test
       - name: TypeScript check
@@ -37,13 +37,13 @@ jobs:
         run: npm run lint
       - name: Production build
         run: npm run build
-      - name: Commit lockfile security fixes
+      - name: Commit regenerated lockfile
         run: |
           if ! git diff --quiet -- package-lock.json; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add package-lock.json
-            git commit -m "fix: patch transitive dependency vulnerabilities"
+            git commit -m "chore: regenerate patched dependency lockfile"
             git push origin HEAD:security/next16-upgrade
           else
             echo "Lockfile already up to date."
