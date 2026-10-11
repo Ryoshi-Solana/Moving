@@ -1,0 +1,5 @@
+python-telegram-bot>=21,<23
+websockets>=13,<16
+httpx>=0.27,<1
+solders>=0.21,<1
+python-dotenv>=1.0
