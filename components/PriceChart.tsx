@@ -10,7 +10,7 @@ import type { HistoryRange, HistoryResponse, HistorySource } from '@/types';
 const W = 760;
 const H = 300;
 const PRICE_H = 214;
-const PAD = { top: 12, right: 76, bottom: 24, left: 8 };
+const PAD = { top: 12, right: 96, bottom: 24, left: 8 };
 
 type State = { status: 'loading' } | { status: 'done'; data: HistoryResponse } | { status: 'error' };
 

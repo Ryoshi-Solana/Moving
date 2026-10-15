@@ -7,7 +7,7 @@ import type { FieldPoint } from '@/types';
 
 const W = 640;
 const H = 440;
-const PAD = { top: 30, right: 18, bottom: 40, left: 52 };
+const PAD = { top: 30, right: 18, bottom: 40, left: 64 };
 const X_LIMIT = 40; // percent
 const Y_LIMIT = 500; // percent
 
@@ -151,7 +151,7 @@ export function MoveField({ points, asOf, activeId, onPick }: Props) {
           {Y_TICKS.map((t) => (
             <g key={`y${t}`}>
               <line x1={PAD.left} x2={W - PAD.right} y1={yPos(t)} y2={yPos(t)} stroke="rgba(158,204,196,0.07)" />
-              <text x={PAD.left - 8} y={yPos(t) + 4} textAnchor="end" className="fill-faint tnum" style={fs(11)}>
+              <text x={2} y={yPos(t) + 4} className="fill-faint tnum" style={fs(11)}>
                 {t > 0 ? `+${t}%` : `${t}%`}
               </text>
             </g>
@@ -185,7 +185,7 @@ export function MoveField({ points, asOf, activeId, onPick }: Props) {
           <text x={W - PAD.right} y={H - 4} textAnchor="end" className="fill-faint" style={fs(11)}>
             24h price change
           </text>
-          <text x={PAD.left - 8} y={PAD.top - 12} className="fill-faint" style={fs(11)}>
+          <text x={2} y={PAD.top - 12} className="fill-faint" style={fs(11)}>
             24h volume change
           </text>
         </svg>
