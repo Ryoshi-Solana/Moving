@@ -1,0 +1,20 @@
+name: tmp-visual-review
+on:
+  push:
+    branches: [tmp/visual-review]
+permissions:
+  contents: read
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download screenshots from the review sandbox
+        run: |
+          mkdir shots && cd shots
+          wget -q -r -np -nd -A jpg,png,webp "$(cat ../url.txt 2>/dev/null || echo https://sb-2oz5mzs5accs.vercel.run/)" || true
+          ls -la
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shots
+          path: shots
+          retention-days: 1
