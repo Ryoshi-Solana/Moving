@@ -2,19 +2,18 @@ name: tmp-visual-review
 on:
   push:
     branches: [tmp/visual-review]
+    paths: [url.txt]
 permissions:
-  contents: read
+  contents: write
 jobs:
   fetch:
     runs-on: ubuntu-latest
     steps:
-      - name: Download screenshots from the review sandbox
+      - uses: actions/checkout@v4
+      - name: Download screenshots from the review sandbox and commit them
         run: |
-          mkdir shots && cd shots
-          wget -q -r -np -nd -A jpg,png,webp "$(cat ../url.txt 2>/dev/null || echo https://sb-2oz5mzs5accs.vercel.run/)" || true
-          ls -la
-      - uses: actions/upload-artifact@v4
-        with:
-          name: shots
-          path: shots
-          retention-days: 1
+          rm -rf shots && mkdir shots && cd shots
+          wget -q -r -np -nd -A jpg,png,webp "$(cat ../url.txt)" || true
+          cd ..
+          git config user.name github-actions && git config user.email github-actions@users.noreply.github.com
+          git add shots && git commit -qm "tmp: screenshots [skip ci]" && git push
