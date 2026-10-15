@@ -66,8 +66,13 @@ function weighSignals(asset: AssetSnapshot, analysis: Analysis): Pick<EvidenceRe
   const volumeDown = s.volumeTrend === 'contracting' || s.volumeTrend === 'flat';
 
   if (s.direction === 'flat') {
-    supporting.push(`Price is within the ±${THRESHOLDS.move.noise}% noise band (${price}), so there is no large move to explain.`);
-    if (volumeUp) opposing.push(`Volume is up ${volume} even though price is flat — activity is building without a direction yet.`);
+    // With no directional move, whether rising volume supports or cuts against
+    // the reading depends on what the engine concluded, not on direction.
+    const activityReading = analysis.primary.key === 'rising-activity';
+    supporting.push(`Price is within the ±${THRESHOLDS.move.noise}% noise band (${price}), so there is no large directional move.`);
+    if (volumeUp && activityReading) supporting.push(`Volume is up ${volume} with price flat — the build-up in activity this reading describes.`);
+    else if (volumeUp) opposing.push(`Volume is up ${volume} even though price is flat — activity is building without a direction yet.`);
+    else if (activityReading && volumeDown) opposing.push(`Volume changed ${volume}, which does not show a build-up in activity.`);
   } else {
     const side = s.direction === 'up' ? 'rise' : 'decline';
     if (volumeUp) supporting.push(`Volume rose ${volume} alongside the ${price} ${side}, so more trading backs the move.`);

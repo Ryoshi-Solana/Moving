@@ -165,7 +165,9 @@ export function Workspace() {
           </div>
         </div>
 
-        <div className="surface min-w-0 p-4 sm:p-5">
+        {/* On small screens the field steps aside once an investigation is open,
+            so the dossier sits directly under the search. */}
+        <div className={`surface min-w-0 p-4 sm:p-5 ${status === 'idle' ? '' : 'hidden lg:block'}`}>
           <div className="mb-3 flex items-baseline justify-between gap-3">
             <h2 className="text-[15px] font-semibold text-ink">Today&apos;s market, by price and volume</h2>
             <span className="hidden text-[12px] text-faint sm:inline">Click any dot to investigate</span>

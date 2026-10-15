@@ -154,13 +154,20 @@ export function buildDiscoveryBoards(pool: AssetSnapshot[]): DiscoveryBoard[] {
     .filter((a) => Math.abs(a.percentChange24h ?? 0) >= THRESHOLDS.move.noise)
     .sort((a, b) => Math.abs(b.percentChange24h ?? 0) - Math.abs(a.percentChange24h ?? 0))
     .slice(0, BOARD_SIZE)
-    .map((a) => entry(a, `Price ${pct(a.percentChange24h)} in 24h`));
+    .map((a) =>
+      entry(
+        a,
+        a.volumeChange24h !== null
+          ? `Volume ${pct(a.volumeChange24h)} vs the prior 24h`
+          : `${formatRatio(a.volumeToMarketCap)} of market cap traded in 24h`
+      )
+    );
 
   const surge = eligible
     .filter((a) => (a.volumeChange24h ?? -Infinity) >= THRESHOLDS.volume.expanding)
     .sort((a, b) => (b.volumeChange24h ?? 0) - (a.volumeChange24h ?? 0))
     .slice(0, BOARD_SIZE)
-    .map((a) => entry(a, `Volume ${pct(a.volumeChange24h)} vs the prior 24h, price ${pct(a.percentChange24h)}`));
+    .map((a) => entry(a, `Volume ${pct(a.volumeChange24h)} vs the prior 24h`));
 
   const unconfirmed = eligible
     .filter(
@@ -171,7 +178,7 @@ export function buildDiscoveryBoards(pool: AssetSnapshot[]): DiscoveryBoard[] {
     )
     .sort((a, b) => Math.abs(b.percentChange24h ?? 0) - Math.abs(a.percentChange24h ?? 0))
     .slice(0, BOARD_SIZE)
-    .map((a) => entry(a, `Price ${pct(a.percentChange24h)} while volume ${pct(a.volumeChange24h)}`));
+    .map((a) => entry(a, `Volume ${pct(a.volumeChange24h)} while price moved`));
 
   const turnover = eligible
     .filter((a) => (a.volumeToMarketCap ?? 0) >= THRESHOLDS.turnover.elevated)

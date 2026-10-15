@@ -1,13 +1,13 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { formatPercent } from '@/lib/format';
 import type { FieldPoint } from '@/types';
 
 const W = 640;
 const H = 440;
-const PAD = { top: 18, right: 18, bottom: 40, left: 52 };
+const PAD = { top: 30, right: 18, bottom: 40, left: 52 };
 const X_LIMIT = 40; // percent
 const Y_LIMIT = 500; // percent
 
@@ -48,7 +48,22 @@ interface Props {
  */
 export function MoveField({ points, asOf, activeId, onPick }: Props) {
   const [hover, setHover] = useState<FieldPoint | null>(null);
+  const [k, setK] = useState(1);
   const svgRef = useRef<SVGSVGElement>(null);
+
+  // Keep chart text at a readable on-screen size however narrow the chart is
+  // rendered: font sizes are in viewBox units, so scale them by W / width.
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(([entry]) => {
+      const width = entry.contentRect.width;
+      if (width > 0) setK(Math.min(2.2, Math.max(1, W / width)));
+    });
+    observer.observe(svg);
+    return () => observer.disconnect();
+  }, []);
+  const fs = (px: number) => ({ fontSize: px * k });
 
   const placed = useMemo(() => {
     const caps = points.map((p) => p.marketCap ?? 0).filter((c) => c > 0);
@@ -61,16 +76,26 @@ export function MoveField({ points, asOf, activeId, onPick }: Props) {
     }));
   }, [points]);
 
-  const labelled = useMemo(
-    () =>
-      new Set(
-        [...points]
-          .sort((a, b) => Math.abs(b.priceChange24h) + Math.abs(b.volumeChange24h) / 10 - (Math.abs(a.priceChange24h) + Math.abs(a.volumeChange24h) / 10))
-          .slice(0, 6)
-          .map((p) => p.id)
-      ),
-    [points]
-  );
+  // Label the most extreme points, skipping any whose label would collide
+  // with one already placed.
+  const labelled = useMemo(() => {
+    const ranked = [...placed].sort(
+      (a, b) =>
+        Math.abs(b.p.priceChange24h) + Math.abs(b.p.volumeChange24h) / 10 - (Math.abs(a.p.priceChange24h) + Math.abs(a.p.volumeChange24h) / 10)
+    );
+    const boxes: Array<{ x: number; y: number; w: number; h: number }> = [];
+    const ids = new Set<number>();
+    for (const item of ranked) {
+      if (ids.size >= 6) break;
+      const box = { x: item.x + item.r + 3, y: item.y - 8 * k, w: (item.p.symbol.length * 7 + 4) * k, h: 13 * k };
+      if (box.x + box.w > W - PAD.right) continue;
+      const hit = boxes.some((b) => box.x < b.x + b.w && box.x + box.w > b.x && box.y < b.y + b.h && box.y + box.h > b.y);
+      if (hit) continue;
+      boxes.push(box);
+      ids.add(item.p.id);
+    }
+    return ids;
+  }, [placed, k]);
 
   function nearest(clientX: number, clientY: number) {
     const svg = svgRef.current;
@@ -118,7 +143,7 @@ export function MoveField({ points, asOf, activeId, onPick }: Props) {
           {X_TICKS.map((t) => (
             <g key={`x${t}`}>
               <line x1={xPos(t)} x2={xPos(t)} y1={PAD.top} y2={H - PAD.bottom} stroke="rgba(158,204,196,0.07)" />
-              <text x={xPos(t)} y={H - PAD.bottom + 18} textAnchor="middle" className="fill-faint text-[11px] tnum">
+              <text x={xPos(t)} y={H - PAD.bottom + 16 + 4 * k} textAnchor="middle" className="fill-faint tnum" style={fs(11)}>
                 {t > 0 ? `+${t}%` : `${t}%`}
               </text>
             </g>
@@ -126,7 +151,7 @@ export function MoveField({ points, asOf, activeId, onPick }: Props) {
           {Y_TICKS.map((t) => (
             <g key={`y${t}`}>
               <line x1={PAD.left} x2={W - PAD.right} y1={yPos(t)} y2={yPos(t)} stroke="rgba(158,204,196,0.07)" />
-              <text x={PAD.left - 8} y={yPos(t) + 4} textAnchor="end" className="fill-faint text-[11px] tnum">
+              <text x={PAD.left - 8} y={yPos(t) + 4} textAnchor="end" className="fill-faint tnum" style={fs(11)}>
                 {t > 0 ? `+${t}%` : `${t}%`}
               </text>
             </g>
@@ -134,9 +159,9 @@ export function MoveField({ points, asOf, activeId, onPick }: Props) {
           <line x1={zeroX} x2={zeroX} y1={PAD.top} y2={H - PAD.bottom} stroke="rgba(158,204,196,0.28)" />
           <line x1={PAD.left} x2={W - PAD.right} y1={zeroY} y2={zeroY} stroke="rgba(158,204,196,0.28)" />
 
-          <g className="fill-muted text-[12px]">
-            <text x={W - PAD.right - 8} y={PAD.top + 18} textAnchor="end">Rising with volume</text>
-            <text x={PAD.left + 8} y={PAD.top + 18}>Falling with volume</text>
+          <g className="fill-muted" style={fs(12)}>
+            <text x={W - PAD.right - 8} y={PAD.top + 8 + 12 * k} textAnchor="end">Rising with volume</text>
+            <text x={PAD.left + 8} y={PAD.top + 8 + 12 * k}>Falling with volume</text>
             <text x={W - PAD.right - 8} y={H - PAD.bottom - 10} textAnchor="end">Rising on thinner flow</text>
             <text x={PAD.left + 8} y={H - PAD.bottom - 10}>Drifting lower</text>
           </g>
@@ -149,7 +174,7 @@ export function MoveField({ points, asOf, activeId, onPick }: Props) {
                 <circle cx={x} cy={y} r={r} fill={color} fillOpacity={hover && hover.id !== p.id ? 0.22 : 0.55} stroke={color} strokeOpacity={0.9} strokeWidth={0.8} />
                 {isActive ? <circle cx={x} cy={y} r={r + 5} fill="none" stroke="#D4FF3A" strokeWidth={1.4} /> : null}
                 {labelled.has(p.id) || isActive ? (
-                  <text x={x + r + 4} y={y + 4} className="fill-ink text-[11px] ident">
+                  <text x={x + r + 3} y={y + 4} className="fill-ink ident" style={fs(11)}>
                     {p.symbol}
                   </text>
                 ) : null}
@@ -157,10 +182,10 @@ export function MoveField({ points, asOf, activeId, onPick }: Props) {
             );
           })}
 
-          <text x={W - PAD.right} y={H - 6} textAnchor="end" className="fill-faint text-[11px]">
+          <text x={W - PAD.right} y={H - 4} textAnchor="end" className="fill-faint" style={fs(11)}>
             24h price change
           </text>
-          <text transform={`translate(12 ${PAD.top + 4}) rotate(90)`} className="fill-faint text-[11px]">
+          <text x={PAD.left - 8} y={PAD.top - 12} className="fill-faint" style={fs(11)}>
             24h volume change
           </text>
         </svg>

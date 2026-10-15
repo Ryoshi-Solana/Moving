@@ -99,7 +99,8 @@ export function SignalGauges({ signals }: { signals: Signals }) {
           min={-1}
           max={1}
           display={signals.trendAlignment.toFixed(2)}
-          marks={[{ at: 0, label: '' }]}
+          marks={[{ at: 0, label: 'mixed' }]}
+          origin={0}
         />
       </div>
     </section>
@@ -113,7 +114,8 @@ function Gauge({
   min,
   max,
   display,
-  marks
+  marks,
+  origin
 }: {
   label: string;
   note: string;
@@ -122,6 +124,8 @@ function Gauge({
   max: number;
   display: string;
   marks: Array<{ at: number; label: string }>;
+  /** Bipolar scales fill from this value instead of from the left edge. */
+  origin?: number;
 }) {
   const pos = (v: number) => ((v - min) / (max - min)) * 100;
   return (
@@ -132,7 +136,14 @@ function Gauge({
       </div>
       <div className="relative mt-2.5 h-[6px] rounded-full bg-raised" role="presentation">
         {value !== null ? (
-          <span className="absolute inset-y-0 left-0 rounded-full bg-teal/70" style={{ width: `${Math.max(1.5, pos(value))}%` }} />
+          origin === undefined ? (
+            <span className="absolute inset-y-0 left-0 rounded-full bg-teal/70" style={{ width: `${Math.max(1.5, pos(value))}%` }} />
+          ) : (
+            <span
+              className="absolute inset-y-0 rounded-full bg-teal/70"
+              style={{ left: `${Math.min(pos(value), pos(origin))}%`, width: `${Math.max(1.5, Math.abs(pos(value) - pos(origin)))}%` }}
+            />
+          )
         ) : null}
         {marks.map((m) => (
           <span key={m.at} className="absolute -top-[3px] h-[12px] w-px bg-muted/70" style={{ left: `${pos(m.at)}%` }} />

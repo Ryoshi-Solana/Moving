@@ -227,6 +227,12 @@ function coin(overrides: Partial<AssetSnapshot> & { id: number; symbol: string }
   assert('thin pairs opposing', thinEv.opposing.some((t) => t.includes('market pairs')));
   assert('hourly reversal opposing', thinEv.opposing.some((t) => t.includes('last hour')));
 
+  const flat = coin({ id: 4, symbol: 'FLT', percentChange1h: 0.1, percentChange24h: 1, percentChange7d: 2, volumeChange24h: 180, volumeToMarketCap: 0.06 });
+  const flatAnalysis = analyze(flat);
+  const flatEv = buildEvidence(flat, flatAnalysis);
+  assert('flat + rising activity: engine picks rising-activity', flatAnalysis.primary.key === 'rising-activity');
+  assert('flat + rising activity: volume build-up is supporting, not opposing', flatEv.supporting.some((t) => t.includes('build-up')) && !flatEv.opposing.some((t) => t.includes('Volume is up')));
+
   const missing = coin({ id: 3, symbol: 'MIS', volumeChange24h: null });
   const missingEv = buildEvidence(missing, analyze(missing));
   assert('missing metrics disclosed', missingEv.opposing.some((t) => t.startsWith('Not reported')));

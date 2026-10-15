@@ -120,7 +120,7 @@ export const CommandSearch = forwardRef<HTMLInputElement, Props>(function Comman
                 setActive((i) => (i <= 0 ? suggestions.length - 1 : i - 1));
               }
             }}
-            placeholder="Ticker, name or contract address"
+            placeholder="Ticker, name or address"
             autoComplete="off"
             autoCapitalize="none"
             autoCorrect="off"

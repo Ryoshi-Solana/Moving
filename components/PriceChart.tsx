@@ -45,11 +45,15 @@ export function PriceChart({ source, refPrice, symbol }: { source: HistorySource
 
   const geometry = useMemo(() => {
     if (candles.length < 2 || !summary) return null;
-    const span = summary.high - summary.low || summary.high * 0.01 || 1;
-    const lo = summary.low - span * 0.06;
-    const hi = summary.high + span * 0.06;
+    const priceSpan = summary.high - summary.low || summary.high * 0.01 || 1;
+    const lo = summary.low - priceSpan * 0.06;
+    const hi = summary.high + priceSpan * 0.06;
     const innerW = W - PAD.left - PAD.right;
-    const x = (i: number) => PAD.left + (i / (candles.length - 1)) * innerW;
+    // Position by time, not by index: young DEX pools only report intervals
+    // that had trades, and gaps must stay visible as gaps.
+    const t0 = candles[0].t;
+    const span = Math.max(1, candles[candles.length - 1].t - t0);
+    const x = (i: number) => PAD.left + ((candles[i].t - t0) / span) * innerW;
     const y = (v: number) => PAD.top + (1 - (v - lo) / (hi - lo)) * (PRICE_H - PAD.top);
     const maxVol = Math.max(0, ...candles.map((c) => c.v ?? 0));
     const volTop = PRICE_H + 14;
@@ -57,7 +61,8 @@ export function PriceChart({ source, refPrice, symbol }: { source: HistorySource
     const line = candles.map((c, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(c.c).toFixed(1)}`).join('');
     const area = `${line}L${x(candles.length - 1).toFixed(1)},${PRICE_H}L${x(0).toFixed(1)},${PRICE_H}Z`;
     const ticks = [hi - (hi - lo) * 0.1, (hi + lo) / 2, lo + (hi - lo) * 0.1];
-    return { x, y, line, area, maxVol, volTop, volH, ticks, barW: Math.max(1, innerW / candles.length - 1) };
+    const barW = Math.max(1, (innerW * (candles.length > 1 ? Math.min(...candles.slice(1).map((c, i) => c.t - candles[i].t)) : span)) / span - 1);
+    return { x, y, line, area, maxVol, volTop, volH, ticks, barW, t0, span, innerW };
   }, [candles, summary]);
 
   const up = summary ? summary.last >= summary.first : true;
@@ -66,10 +71,12 @@ export function PriceChart({ source, refPrice, symbol }: { source: HistorySource
 
   function moveTo(clientX: number) {
     const box = svgRef.current?.getBoundingClientRect();
-    if (!box || candles.length < 2) return;
+    if (!box || !geometry) return;
     const sx = ((clientX - box.left) / box.width) * W;
-    const ratio = (sx - PAD.left) / (W - PAD.left - PAD.right);
-    setCursor(Math.max(0, Math.min(candles.length - 1, Math.round(ratio * (candles.length - 1)))));
+    const t = geometry.t0 + ((sx - PAD.left) / geometry.innerW) * geometry.span;
+    let best = 0;
+    for (let i = 1; i < candles.length; i++) if (Math.abs(candles[i].t - t) < Math.abs(candles[best].t - t)) best = i;
+    setCursor(best);
   }
 
   return (
