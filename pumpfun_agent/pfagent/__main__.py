@@ -99,6 +99,9 @@ async def run(settings: Settings) -> None:
     async def subscription_loop():
         while not stop.is_set():
             try:
+                if feed.trade_access_denied and time.time() - feed.denied_at > 300:
+                    log.info("mencoba ulang akses data trade PumpPortal…")
+                    await feed.retry_trade_access()
                 await feed.flush_subscriptions()
             except Exception:
                 log.exception("flush subscribe error")
@@ -108,6 +111,7 @@ async def run(settings: Settings) -> None:
         last_feed_warn = 0.0
         last_stats = time.time()
         denied_warned = False
+        trades_ok_announced = False
         while not stop.is_set():
             now = time.time()
             try:
@@ -126,6 +130,10 @@ async def run(settings: Settings) -> None:
                     "tidak bisa melihat harga/volume, jadi tidak akan trading.\n"
                     "Perlu PUMPPORTAL_API_KEY dari pumpportal.fun yang wallet-nya berisi ≥0.02 SOL."
                 )
+            if agent.counters["trades_seen"] > 0 and not trades_ok_announced:
+                trades_ok_announced = True
+                denied_warned = False
+                await agent.notify("✅ Data trade PumpPortal masuk. Agent mulai menilai token & paper trading.")
             if now - last_stats >= 300:
                 last_stats = now
                 c = agent.counters

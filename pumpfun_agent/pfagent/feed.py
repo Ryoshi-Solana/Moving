@@ -37,6 +37,7 @@ class PumpPortalFeed:
         self._pending_subs: list[str] = []
         self._unknown_logged = 0
         self.trade_access_denied = False
+        self.denied_at = 0.0
 
     async def _send(self, payload: dict) -> None:
         if self._ws is not None:
@@ -53,6 +54,14 @@ class PumpPortalFeed:
             return
         self.trade_subs.update(new)
         self._pending_subs.extend(new)
+
+    async def retry_trade_access(self) -> None:
+        """Coba lagi berlangganan trade (mis. setelah wallet API key diisi SOL)."""
+        if not self.trade_access_denied or self._ws is None:
+            return
+        self.trade_access_denied = False
+        self._pending_subs = list(self.trade_subs)
+        await self.flush_subscriptions()
 
     async def flush_subscriptions(self) -> None:
         if not self._pending_subs or self._ws is None or self.trade_access_denied:
@@ -98,6 +107,10 @@ class PumpPortalFeed:
                             if not self.trade_access_denied:
                                 log.error("PumpPortal menolak data trade: %s", text)
                             self.trade_access_denied = True
+                            self.denied_at = time.time()
+                            continue
+                        if msg.get("errors"):
+                            log.warning("PumpPortal: %s", msg.get("errors"))
                             continue
                         kind = str(msg.get("txType") or ("message" if "message" in msg else "lain"))
                         self.msg_types[kind] = self.msg_types.get(kind, 0) + 1
