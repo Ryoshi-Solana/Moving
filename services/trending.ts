@@ -2,12 +2,18 @@ import 'server-only';
 
 import { fetchTopByMarketCap } from '@/services/coinmarketcap';
 import { normalize } from '@/services/normalize';
-import { selectTopGainers, selectTrendingCoins } from '@/lib/market-feeds';
-import type { AssetSnapshot } from '@/types';
+import { buildDiscoveryBoards, buildMoveField, poolAsOf, selectTopGainers, selectTrendingCoins } from '@/lib/market-feeds';
+import type { AssetSnapshot, DiscoveryBoard, FieldPoint } from '@/types';
 
 export interface MarketFeeds {
   trending: AssetSnapshot[] | null;
   gainers: AssetSnapshot[] | null;
+  /** Additive: every eligible top-100 asset as a (price, volume) change point. */
+  field: FieldPoint[] | null;
+  /** Additive: transparent screens over the same pool. */
+  boards: DiscoveryBoard[] | null;
+  /** Newest quote timestamp in the pool. */
+  asOf: string | null;
 }
 
 /**
@@ -32,13 +38,16 @@ export async function getMarketFeeds(): Promise<MarketFeeds> {
     const pool = quotes.map((q) => normalize(q, null));
     return {
       trending: nullIfEmpty(selectTrendingCoins(pool)),
-      gainers: nullIfEmpty(selectTopGainers(pool))
+      gainers: nullIfEmpty(selectTopGainers(pool)),
+      field: nullIfEmpty(buildMoveField(pool)),
+      boards: pool.length > 0 ? buildDiscoveryBoards(pool) : null,
+      asOf: poolAsOf(pool)
     };
   } catch {
-    return { trending: null, gainers: null };
+    return { trending: null, gainers: null, field: null, boards: null, asOf: null };
   }
 }
 
-function nullIfEmpty(list: AssetSnapshot[]): AssetSnapshot[] | null {
+function nullIfEmpty<T>(list: T[]): T[] | null {
   return list.length > 0 ? list : null;
 }

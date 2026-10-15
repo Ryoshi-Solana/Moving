@@ -4,7 +4,7 @@ A user types a ticker, coin name, or contract address. The app pulls live
 CoinMarketCap data, compares the metrics against each other, and explains what
 the data suggests is driving the move.
 
-One job, done well. No accounts, no portfolios, no charts.
+One job, done well: an evidence-based investigation of a move. No accounts, no wallets, no portfolios.
 
 ---
 
@@ -20,7 +20,7 @@ Get a free key at <https://pro.coinmarketcap.com/signup>. The free "Basic" plan
 is enough for everything here.
 
 ```bash
-npm test          # eight offline suites, no network, no API credits
+npm test          # nine offline suites, no network, no API credits
 npm run typecheck # tsc --noEmit
 npm run build     # production build
 ```
@@ -75,10 +75,17 @@ app/
   api/analyze/route.ts    core analysis endpoint
   api/context/route.ts    optional BTC/global context
   api/discover/route.ts   optional asset discovery
-  api/trending/route.ts   optional trending/gainers feeds
+  api/trending/route.ts   optional tape, move field and discovery screens
+  api/suggest/route.ts    autocomplete from the cached CMC directory
+  api/history/route.ts    keyless, identity-verified price history
 components/
-  AnalyzePanel.tsx        client: search → loading → result/error
-  AnalysisReport.tsx      the full diagnosis view
+  Workspace.tsx           client: hero, search → loading → dossier, screens
+  CommandSearch.tsx       combobox search with autocomplete + local recents
+  MoveField.tsx           top-100 scatter: 24h price vs 24h volume change
+  AnalysisReport.tsx      the investigation dossier
+  PriceChart.tsx          verified price history (SVG, no chart library)
+  Signals.tsx             move profile + signal gauges
+  DiscoveryBoards.tsx     four rule-stated market screens
   ExampleAnalysis.tsx     optional example component (not shown by default)
   States.tsx              loading + error states
   Chrome.tsx              navbar, how it works, CTA, footer
@@ -145,6 +152,47 @@ identity and contract displayed in the report before relying on a result.
 
 ---
 
+
+## Price history (keyless, verified)
+
+| Asset source | History source | Endpoint | Cache |
+| --- | --- | --- | --- |
+| CoinMarketCap | Coinbase Exchange public candles, `SYMBOL-USD` | `GET /products/{product}/candles` | 2–15 min |
+| DexScreener | GeckoTerminal pool OHLCV for the exact pool | `GET /api/v2/networks/{network}/pools/{pool}/ohlcv/{timeframe}` | 2–15 min |
+
+Neither needs an API key and both are called only from the server. Because a
+ticker can mean different assets on different venues, `/api/history` returns
+candles only when the venue's latest close is within 6% of the quote MOVING
+analysed and the newest candle is recent; otherwise it returns
+`mismatch`, `stale` or `unavailable` with no candles, and the dossier explains
+why no chart is shown. Venue volume describes that venue only and is labelled
+as such. Inputs are validated against strict patterns before any upstream call.
+
+## Discovery screens
+
+`/api/trending` keeps its original `trending`/`gainers` fields and adds
+`field` (every eligible top-100 asset as a 24h price-change / volume-change
+point), `boards` (four screens) and `asOf`. All of it is computed from the same
+cached top-100 listing, so no extra CMC requests are made. Each screen states
+its rule and each row a number-backed reason:
+
+- **Largest moves** — biggest absolute 24h price change, at least 2%.
+- **Volume surging** — 24h volume at least 100% above the prior 24h.
+- **Moving without volume** — price moved 5%+ either way while 24h volume did not rise.
+- **Heavy turnover** — 24h volume at least 0.15 of market cap.
+
+Thresholds reuse `analysis/signals.ts` so the screens and the engine agree.
+
+## Evidence ledger
+
+`analysis/evidence.ts` is a presentation layer over the unchanged engine. It
+sorts what the data shows into *observed* facts, observations *consistent
+with* and *cutting against* the reading, what would *change* the reading, what
+to *re-check*, and what is *outside the data* (news, listings, social, wallet
+flows, unlocks). It never changes the driver, verdict or confidence.
+
+---
+
 ## How the analysis works
 
 Two stages, both deterministic. No LLM call, no API cost, same input always
@@ -203,7 +251,7 @@ and the UI labels the result as partial or limited data.
 
 ### Tests
 
-`npm test` runs eight offline suites:
+`npm test` runs nine offline suites:
 
 - **Analysis** — deterministic driver scoring, missing-data and no-data paths.
 - **Resolution** — input validation, address detection, normalization, formatting,
@@ -214,6 +262,9 @@ and the UI labels the result as partial or limited data.
 - **Questions** — question/answer logic and its supported paths.
 - **Market feeds** — trending/gainers feed behavior.
 - **DexScreener** — fallback lookup and pair/token selection.
+- **Intelligence data layer** — history identity/freshness gate, provider
+  parsing, autocomplete ranking, discovery screens, freshness labels, the
+  evidence ledger, and DexScreener pool detail.
 
 The test runner uses Node's built-in TypeScript stripping (`--experimental-strip-types`),
 so use Node ≥22.13. No network or API credits are required for these offline suites.
@@ -229,7 +280,10 @@ so use Node ≥22.13. No network or API credits are required for these offline s
   `NaN`/`Infinity` become `null`. Nothing is passed through verbatim.
 - Every failure becomes a typed `AppError` with user-facing copy. Raw upstream
   messages and status codes stay in the server log.
-- Per-IP rate limiting (20/min by default).
+- Per-IP rate limiting (20/min by default for analysis; separate buckets of
+  90/min for autocomplete and 40/min for price history).
+- Recent investigations are stored only in the visitor's browser
+  (`localStorage`); nothing about searches is persisted server-side.
 
 The rate limiter and cache live in process memory. On serverless that is
 per-instance, which is fine for abuse dampening and credit saving. If the
@@ -250,7 +304,10 @@ Upstash — it is one small module behind one function.
    genuine CMC data and is shown normally.
 2. **`volume_change_24h` is occasionally null** for illiquid assets. The engine
    drops volume confirmation and falls back to turnover.
-3. **No OHLCV history**, so no intraday reconstruction or volatility measures.
+3. **No OHLCV history from CMC.** Price charts come from keyless public
+   venues instead (see *Price history* below) and are shown only when the
+   venue's latest close matches MOVING's quote within 6%. The analysis engine
+   itself still uses only the CMC/DexScreener snapshot.
 4. **No per-exchange breakdown.** `market-pairs/latest` is not on Basic, so the
    app can only say how many pairs exist, not which venues are driving flow.
 5. **Contract lookups only cover listed tokens.** A token CMC has not indexed
@@ -288,8 +345,9 @@ npm run build && npm start   # Node 22.13+ recommended/required
 ```
 
 Or push to GitHub and import at <https://vercel.com/new>. Zero config beyond
-`CMC_API_KEY`. No database, no external services, no build plugins.
+`CMC_API_KEY`. No database, no paid services, no build plugins.
 
 ---
 
-Market data from CoinMarketCap. Not financial advice.
+Market data from CoinMarketCap and DexScreener; price history from Coinbase
+Exchange and GeckoTerminal when verified. Not financial advice.

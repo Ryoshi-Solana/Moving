@@ -3,40 +3,59 @@
 @tailwind utilities;
 
 :root {
-  --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, 'Helvetica Neue', Arial,
-    sans-serif;
-  --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, 'JetBrains Mono', Menlo, Consolas, 'Liberation Mono', monospace;
   color-scheme: dark;
 }
 
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
   }
 
   body {
     @apply bg-void text-ink antialiased;
-    font-family: var(--font-sans);
-    font-feature-settings: 'ss01', 'cv01';
+    font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+    font-feature-settings: 'ss01', 'cv11';
   }
 
+  /* Numbers: tabular figures in the text face, so columns of prices align
+     without switching to a monospace font. */
   .tnum {
-    font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
-    font-feature-settings: 'zero' 1;
+    font-feature-settings: 'tnum' 1, 'zero' 1;
+  }
+
+  /* Identifiers (tickers, contract addresses) — the one place mono is used. */
+  .ident {
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+  }
+
+  /* Width axis of the display face: the headline is set wide, data labels narrow. */
+  .wide {
+    font-stretch: 125%;
+  }
+
+  .narrow {
+    font-stretch: 82%;
   }
 
   ::selection {
-    background: rgba(0, 229, 160, 0.26);
+    background: rgba(46, 230, 214, 0.28);
   }
 
   :focus-visible {
-    outline: 1.5px solid #00e5a0;
+    outline: 2px solid #2ee6d6;
     outline-offset: 2px;
-    border-radius: 2px;
+    border-radius: 3px;
   }
 
   @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+
     *,
     *::before,
     *::after {
@@ -48,9 +67,19 @@
 }
 
 @layer components {
-  .panel {
-    @apply rounded-[3px] border border-edge;
-    background-image: linear-gradient(165deg, #17232f 0%, #121d29 100%);
+  /* Surfaces. Hierarchy comes from tone, not shadows. */
+  .surface {
+    @apply rounded-[6px] border border-edge bg-panel;
+  }
+
+  .surface-sunken {
+    @apply rounded-[4px] border border-edge-soft bg-sunken;
+  }
+
+  /* Small sentence-case section label. */
+  .label {
+    @apply text-[12px] font-medium text-faint;
+    font-stretch: 90%;
   }
 
   .backdrop-grid {
@@ -58,11 +87,12 @@
     inset: 0;
     z-index: -2;
     pointer-events: none;
-    background-image: linear-gradient(rgba(110, 168, 178, 0.05) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(110, 168, 178, 0.05) 1px, transparent 1px);
-    background-size: 56px 56px;
-    mask-image: radial-gradient(ellipse 88% 68% at 50% 0%, #000 15%, transparent 82%);
-    -webkit-mask-image: radial-gradient(ellipse 88% 68% at 50% 0%, #000 15%, transparent 82%);
+    background-image:
+      linear-gradient(rgba(158, 204, 196, 0.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(158, 204, 196, 0.045) 1px, transparent 1px);
+    background-size: 64px 64px;
+    mask-image: radial-gradient(ellipse 80% 55% at 60% 0%, #000 10%, transparent 75%);
+    -webkit-mask-image: radial-gradient(ellipse 80% 55% at 60% 0%, #000 10%, transparent 75%);
   }
 
   .backdrop-glow {
@@ -70,33 +100,56 @@
     inset: 0;
     z-index: -3;
     pointer-events: none;
-    background:
-      radial-gradient(ellipse 60% 46% at 50% -6%, rgba(0, 229, 160, 0.12), transparent 72%),
-      radial-gradient(ellipse 70% 40% at 50% 42%, rgba(64, 154, 160, 0.06), transparent 76%);
+    background: radial-gradient(ellipse 50% 40% at 72% -4%, rgba(46, 230, 214, 0.1), transparent 70%);
   }
 
-  .backdrop-noise {
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-    pointer-events: none;
-    opacity: 0.03;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  /* The command bar. */
+  .command {
+    @apply rounded-[10px] border border-edge-strong bg-panel transition-[border-color,box-shadow] duration-200;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 24px 60px -36px rgba(0, 0, 0, 0.9);
   }
 
-  .field {
-    @apply rounded-[3px] border border-edge bg-panel transition-[border-color,box-shadow] duration-200;
-  }
-
-  .field:hover {
-    border-color: rgba(110, 168, 178, 0.32);
-  }
-
-  .field:focus-within {
-    border-color: rgba(0, 229, 160, 0.55);
+  .command:focus-within {
+    border-color: rgba(46, 230, 214, 0.6);
     box-shadow:
-      0 0 0 1px rgba(0, 229, 160, 0.16),
-      0 12px 44px -20px rgba(0, 229, 160, 0.5);
+      0 0 0 3px rgba(46, 230, 214, 0.12),
+      0 24px 60px -30px rgba(46, 230, 214, 0.35);
+  }
+
+  .chip {
+    @apply inline-flex min-h-[32px] items-center gap-1.5 rounded-[4px] border border-edge px-2.5 text-[12.5px] text-muted transition-colors duration-150;
+  }
+
+  .chip:hover {
+    @apply border-teal/50 text-ink;
+  }
+
+  @keyframes ticker-scroll {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+
+  .ticker-track {
+    animation: ticker-scroll 60s linear infinite;
+  }
+
+  .ticker-viewport:hover .ticker-track {
+    animation-play-state: paused;
+  }
+
+  .skeleton {
+    position: relative;
+    overflow: hidden;
+    @apply rounded-[3px] bg-raised;
+  }
+
+  .skeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    width: 40%;
+    background: linear-gradient(90deg, transparent, rgba(46, 230, 214, 0.08), transparent);
+    animation: sweep 1.6s linear infinite;
   }
 
   @keyframes sweep {
@@ -104,42 +157,21 @@
     100% { transform: translateX(320%); }
   }
 
-  /* Trending-coins ticker: two copies of the same track sit side by side and
-     scroll left together by exactly one track-width, so the seam between the
-     end of copy 1 and the start of copy 2 is invisible — a seamless loop
-     without needing to know the content's pixel width in advance. */
-  @keyframes ticker-scroll {
-    from { transform: translateX(0); }
-    to { transform: translateX(-50%); }
+  /* Analysis trace: a line that draws itself while the dossier assembles. */
+  .trace-path {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    animation: trace 1.8s cubic-bezier(0.65, 0, 0.35, 1) infinite;
   }
 
-  .ticker-track {
-    animation: ticker-scroll 48s linear infinite;
+  @keyframes trace {
+    0% { stroke-dashoffset: 1; opacity: 1; }
+    70% { stroke-dashoffset: 0; opacity: 1; }
+    100% { stroke-dashoffset: 0; opacity: 0; }
   }
 
-  /* Same seamless-loop trick, running the opposite way — used by the second
-     ticker row so the two feeds visually read as distinct, independent
-     strips rather than one repeated motion. */
-  @keyframes ticker-scroll-reverse {
-    from { transform: translateX(-50%); }
-    to { transform: translateX(0); }
-  }
-
-  .ticker-track-reverse {
-    animation: ticker-scroll-reverse 52s linear infinite;
-  }
-
-  .ticker-viewport:hover .ticker-track,
-  .ticker-viewport:hover .ticker-track-reverse {
-    animation-play-state: paused;
-  }
-
-  .skeleton-sweep::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    width: 32%;
-    background: linear-gradient(90deg, transparent, rgba(0, 229, 160, 0.16), transparent);
-    animation: sweep 1.5s linear infinite;
+  @media (prefers-reduced-motion: reduce) {
+    .ticker-track { animation: none; }
+    .trace-path { stroke-dashoffset: 0; animation: none; }
   }
 }

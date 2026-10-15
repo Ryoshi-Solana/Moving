@@ -159,6 +159,123 @@ export interface AssetSnapshot {
   dataSource?: 'CoinMarketCap' | 'DexScreener';
   /** Direct market/pair URL for transparency, when the provider exposes one. */
   dataSourceUrl?: string | null;
+  /**
+   * Pool-level detail, present only when the snapshot came from DexScreener.
+   * Describes the single selected pool, never an aggregate across pools.
+   * Display-only: the analysis engine does not score against it.
+   */
+  dex?: DexPoolDetail | null;
+}
+
+export interface DexWindowSet {
+  m5: number | null;
+  h1: number | null;
+  h6: number | null;
+  h24: number | null;
+}
+
+export interface DexTxnCount {
+  buys: number;
+  sells: number;
+}
+
+export interface DexPoolDetail {
+  chainId: string;
+  dexId: string | null;
+  pairAddress: string | null;
+  quoteSymbol: string | null;
+  liquidityUsd: number | null;
+  /** ISO timestamp of pool creation as reported by DexScreener. */
+  pairCreatedAt: string | null;
+  priceChange: DexWindowSet;
+  volume: DexWindowSet;
+  txns: { h1: DexTxnCount | null; h24: DexTxnCount | null };
+}
+
+/* ------------------------------------------------------------------ *
+ * Price history (keyless, identity-verified providers)
+ * ------------------------------------------------------------------ */
+
+export type HistoryRange = '1D' | '7D' | '30D';
+
+export type HistorySource =
+  | { provider: 'coinbase'; product: string }
+  | { provider: 'geckoterminal'; network: string; pool: string };
+
+export interface Candle {
+  /** Unix seconds, start of the interval. */
+  t: number;
+  o: number;
+  h: number;
+  l: number;
+  c: number;
+  /** Interval volume in USD (approximate for Coinbase: base volume × close). */
+  v: number | null;
+}
+
+export type HistoryStatus = 'verified' | 'mismatch' | 'stale' | 'unavailable';
+
+export interface HistoryResponse {
+  status: HistoryStatus;
+  range: HistoryRange;
+  /** Human label for the venue the candles describe. */
+  venue: string;
+  /** Candle width in seconds. */
+  interval: number;
+  candles: Candle[];
+  /** Relative gap between the venue's last close and MOVING's quote, when checked. */
+  priceGap: number | null;
+  sourceUrl: string | null;
+  fetchedAt: string;
+}
+
+/* ------------------------------------------------------------------ *
+ * Search suggestions
+ * ------------------------------------------------------------------ */
+
+export interface AssetSuggestion {
+  id: number;
+  name: string;
+  symbol: string;
+  rank: number | null;
+  /** Text to submit so the resolver lands on exactly this asset. */
+  query: string;
+  /** Why this matched: exact ticker, name prefix, etc. */
+  match: 'symbol' | 'symbol-prefix' | 'slug' | 'name' | 'name-prefix' | 'name-contains';
+}
+
+/* ------------------------------------------------------------------ *
+ * Discovery (computed from the shared top-100 pool)
+ * ------------------------------------------------------------------ */
+
+export interface FieldPoint {
+  id: number;
+  symbol: string;
+  name: string;
+  rank: number | null;
+  price: number | null;
+  priceChange24h: number;
+  volumeChange24h: number;
+  turnover: number | null;
+  marketCap: number | null;
+}
+
+export interface BoardEntry {
+  id: number;
+  symbol: string;
+  name: string;
+  rank: number | null;
+  priceChange24h: number | null;
+  /** Plain-language, number-backed reason this asset is on the board. */
+  reason: string;
+}
+
+export interface DiscoveryBoard {
+  key: 'biggest-moves' | 'volume-surge' | 'unconfirmed-moves' | 'heavy-turnover';
+  title: string;
+  /** The exact screening rule, shown to the user. */
+  criterion: string;
+  entries: BoardEntry[];
 }
 
 /** Normalized global market snapshot, used only by CONTEXT questions. */
@@ -250,6 +367,28 @@ export interface AnalyzeResponse {
   analysis: Analysis;
   /** ISO timestamp of when this payload was assembled. */
   generatedAt: string;
+  /** Where verified price history can be requested, if anywhere. Additive. */
+  history?: HistorySource | null;
+}
+
+/* ------------------------------------------------------------------ *
+ * Evidence ledger (presentation of existing analysis — no new scoring)
+ * ------------------------------------------------------------------ */
+
+export interface EvidenceFact {
+  label: string;
+  value: string;
+  tone: DriverTone;
+}
+
+export interface EvidenceReport {
+  observed: EvidenceFact[];
+  supporting: string[];
+  opposing: string[];
+  /** Observations that would weaken the current reading. */
+  invalidation: string;
+  watchNext: string[];
+  outsideData: string[];
 }
 
 export type ApiErrorCode =
