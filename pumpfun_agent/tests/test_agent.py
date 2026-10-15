@@ -390,3 +390,19 @@ def test_feed_batches_trade_subscriptions():
 def test_feed_url_includes_api_key():
     assert Settings().feed_url() == "wss://pumpportal.fun/api/data"
     assert Settings(pumpportal_api_key="abc").feed_url() == "wss://pumpportal.fun/api/data?api-key=abc"
+
+
+def test_telegram_send_failure_does_not_raise():
+    from pfagent.telegram_ui import TelegramUI
+
+    class BrokenBot:
+        async def send_message(self, **kw):
+            raise RuntimeError("Chat not found")
+
+    class App:
+        bot = BrokenBot()
+
+    ui = TelegramUI(Settings(telegram_token="t", telegram_chat_id=123))
+    ui.app = App()
+    run(ui.send("halo"))  # tidak boleh melempar
+    assert ui._send_failures == 1

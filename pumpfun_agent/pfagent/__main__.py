@@ -75,7 +75,13 @@ async def run(settings: Settings) -> None:
     agent.feed = feed
 
     await agent.start()
-    await tg.start(agent, feed)
+    try:
+        await tg.start(agent, feed)
+    except Exception as exc:
+        # token salah dll: agent tetap jalan, laporan hanya ke log
+        log.error("Telegram gagal start (%s) — cek TELEGRAM_BOT_TOKEN. Agent jalan tanpa Telegram.", exc)
+        tg.enabled = False
+        tg.app = None
     await tg.send(
         f"🤖 <b>Agent mulai</b> · mode <b>{settings.mode.upper()}</b>\n"
         f"Equity {agent.equity():.4f} SOL · posisi terbuka {len(agent.positions)}\n"

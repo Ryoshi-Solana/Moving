@@ -47,11 +47,21 @@ class TelegramUI:
             log.info("[notify] %s", re.sub(r"<[^>]+>", "", text))
             return
         from telegram.constants import ParseMode
-        for i in range(0, len(text), 4000):
-            await self.app.bot.send_message(
-                chat_id=self.s.telegram_chat_id, text=text[i:i + 4000],
-                parse_mode=ParseMode.HTML, disable_web_page_preview=True,
-            )
+        try:
+            for i in range(0, len(text), 4000):
+                await self.app.bot.send_message(
+                    chat_id=self.s.telegram_chat_id, text=text[i:i + 4000],
+                    parse_mode=ParseMode.HTML, disable_web_page_preview=True,
+                )
+            self._send_failures = 0
+        except Exception as exc:
+            # Telegram bermasalah tidak boleh mematikan agent: trading & SL tetap jalan.
+            self._send_failures = getattr(self, "_send_failures", 0) + 1
+            if self._send_failures in (1, 10, 100) or self._send_failures % 1000 == 0:
+                hint = (" — cek TELEGRAM_CHAT_ID dan pastikan kamu sudah kirim /start ke bot"
+                        if "chat not found" in str(exc).lower() else "")
+                log.error("gagal kirim Telegram (%dx): %s%s", self._send_failures, exc, hint)
+            log.info("[notify] %s", re.sub(r"<[^>]+>", "", text))
 
     async def start(self, agent: "Agent", feed=None) -> None:
         self.agent = agent
