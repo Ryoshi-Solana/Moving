@@ -78,6 +78,7 @@ def status_text(agent: "Agent", now: float, feed_connected: bool | None = None) 
     ]
     if feed_connected is not None:
         lines.append(f"Feed: {'🟢 tersambung' if feed_connected else '🔴 terputus'}")
+    lines.append(f"Trade diterima: {agent.counters['trades_seen']}")
     return "\n".join(lines)
 
 

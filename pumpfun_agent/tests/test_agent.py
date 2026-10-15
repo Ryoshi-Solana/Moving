@@ -385,3 +385,8 @@ def test_feed_batches_trade_subscriptions():
     sent = run(scenario())
     assert [len(m["keys"]) for m in sent] == [100, 50]
     assert all(m["method"] == "subscribeTokenTrade" for m in sent)
+
+
+def test_feed_url_includes_api_key():
+    assert Settings().feed_url() == "wss://pumpportal.fun/api/data"
+    assert Settings(pumpportal_api_key="abc").feed_url() == "wss://pumpportal.fun/api/data?api-key=abc"

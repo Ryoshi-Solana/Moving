@@ -36,6 +36,7 @@ class PumpPortalFeed:
         self.msg_types: dict[str, int] = {}
         self._pending_subs: list[str] = []
         self._unknown_logged = 0
+        self.trade_access_denied = False
 
     async def _send(self, payload: dict) -> None:
         if self._ws is not None:
@@ -54,7 +55,7 @@ class PumpPortalFeed:
         self._pending_subs.extend(new)
 
     async def flush_subscriptions(self) -> None:
-        if not self._pending_subs or self._ws is None:
+        if not self._pending_subs or self._ws is None or self.trade_access_denied:
             return
         keys, self._pending_subs = self._pending_subs, []
         for i in range(0, len(keys), 100):
@@ -91,6 +92,12 @@ class PumpPortalFeed:
                         except json.JSONDecodeError:
                             continue
                         if not isinstance(msg, dict):
+                            continue
+                        text = str(msg.get("message") or "")
+                        if "API key" in text and "subscribeTokenTrade" in text:
+                            if not self.trade_access_denied:
+                                log.error("PumpPortal menolak data trade: %s", text)
+                            self.trade_access_denied = True
                             continue
                         kind = str(msg.get("txType") or ("message" if "message" in msg else "lain"))
                         self.msg_types[kind] = self.msg_types.get(kind, 0) + 1

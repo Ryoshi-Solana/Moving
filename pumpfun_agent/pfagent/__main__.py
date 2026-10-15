@@ -71,7 +71,7 @@ async def run(settings: Settings) -> None:
     tg = TelegramUI(settings)
     fetch, http_client = (await fetch_metadata_factory()) if settings.fetch_metadata else (None, None)
     agent = Agent(settings, params, store, broker, notify=tg.send, fetch_metadata=fetch)
-    feed = PumpPortalFeed(settings.ws_url, agent.on_message, settings.record_path)
+    feed = PumpPortalFeed(settings.feed_url(), agent.on_message, settings.record_path)
     agent.feed = feed
 
     await agent.start()
@@ -101,6 +101,7 @@ async def run(settings: Settings) -> None:
     async def maintenance_loop():
         last_feed_warn = 0.0
         last_stats = time.time()
+        denied_warned = False
         while not stop.is_set():
             now = time.time()
             try:
@@ -112,6 +113,13 @@ async def run(settings: Settings) -> None:
             if now - last_data > 120 and now - last_feed_warn > 900:
                 last_feed_warn = now
                 await agent.notify("⚠️ Tidak ada data dari PumpPortal >2 menit. SL tidak bisa bereaksi tanpa data!")
+            if feed.trade_access_denied and not denied_warned:
+                denied_warned = True
+                await agent.notify(
+                    "⚠️ <b>PumpPortal menolak data trade.</b> Agent bisa melihat token baru tapi "
+                    "tidak bisa melihat harga/volume, jadi tidak akan trading.\n"
+                    "Perlu PUMPPORTAL_API_KEY dari pumpportal.fun yang wallet-nya berisi ≥0.02 SOL."
+                )
             if now - last_stats >= 300:
                 last_stats = now
                 c = agent.counters
@@ -213,6 +221,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "check":
         print(f"mode: {settings.mode}")
         print(f"telegram: {'OK' if settings.telegram_token and settings.telegram_chat_id else 'BELUM DIISI'}")
+        print(f"pumpportal api key: {'OK' if settings.pumpportal_api_key else 'BELUM DIISI (data trade tidak tersedia)'}")
         print(f"database: {settings.db_path}")
         for e in errors:
             print(f"ERROR: {e}")

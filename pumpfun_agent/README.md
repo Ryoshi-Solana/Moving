@@ -89,6 +89,16 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
+### Siapkan PumpPortal API key (wajib)
+
+PumpPortal hanya mengirim data trade realtime ke API key yang wallet-nya berisi
+minimal 0.02 SOL (tanpa itu agent cuma melihat token baru, tanpa harga/volume).
+
+1. Buka <https://pumpportal.fun>, pilih buat API key / wallet baru.
+2. Simpan API key **dan** private key wallet itu di tempat aman.
+3. Kirim ≥0.02 SOL ke alamat wallet tersebut.
+4. Isi `PUMPPORTAL_API_KEY` di `.env`.
+
 ### Siapkan Telegram
 
 1. Chat [@BotFather](https://t.me/BotFather) → `/newbot` → salin token ke `TELEGRAM_BOT_TOKEN`.
