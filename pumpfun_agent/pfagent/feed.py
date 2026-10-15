@@ -59,9 +59,13 @@ class PumpPortalFeed:
         """Coba lagi berlangganan trade (mis. setelah wallet API key diisi SOL)."""
         if not self.trade_access_denied or self._ws is None:
             return
+        # PumpPortal tampaknya mengecek saldo API key saat koneksi dibuka,
+        # jadi tutup koneksi; run() akan reconnect & subscribe ulang semuanya.
         self.trade_access_denied = False
-        self._pending_subs = list(self.trade_subs)
-        await self.flush_subscriptions()
+        try:
+            await self._ws.close()
+        except Exception:
+            pass
 
     async def flush_subscriptions(self) -> None:
         if not self._pending_subs or self._ws is None or self.trade_access_denied:
