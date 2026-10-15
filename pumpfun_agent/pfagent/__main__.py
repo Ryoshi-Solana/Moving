@@ -92,6 +92,7 @@ async def run(settings: Settings) -> None:
 
     async def maintenance_loop():
         last_feed_warn = 0.0
+        last_stats = time.time()
         while not stop.is_set():
             now = time.time()
             try:
@@ -103,6 +104,15 @@ async def run(settings: Settings) -> None:
             if now - last_data > 120 and now - last_feed_warn > 900:
                 last_feed_warn = now
                 await agent.notify("⚠️ Tidak ada data dari PumpPortal >2 menit. SL tidak bisa bereaksi tanpa data!")
+            if now - last_stats >= 300:
+                last_stats = now
+                c = agent.counters
+                log.info("stats: token_baru=%d trade=%d kandidat=%d entry=%d exit=%d dipantau=%d "
+                         "posisi=%d equity=%.4f feed=%s reconnect=%d tolak_teratas=%s",
+                         c["tokens_seen"], c["trades_seen"], c["candidates"], c["entries"], c["exits"],
+                         len(agent.market.tokens), len(agent.positions), agent.equity(),
+                         "ok" if feed.connected else "putus", feed.reconnects,
+                         agent.rejections.most_common(3))
             await asyncio.sleep(5)
 
     tasks = [asyncio.create_task(feed.run()), asyncio.create_task(maintenance_loop())]
@@ -167,7 +177,7 @@ async def replay(path: str, balance: float, verbose: bool, db_path: str = ":memo
 def main(argv: list[str] | None = None) -> int:
     _load_dotenv()
     logging.basicConfig(format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-                        level=os.environ.get("LOG_LEVEL", "INFO"))
+                        level=os.environ.get("LOG_LEVEL", "INFO"), stream=sys.stdout)
     logging.getLogger("httpx").setLevel(logging.WARNING)
 
     parser = argparse.ArgumentParser(prog="pfagent")
