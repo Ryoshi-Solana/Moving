@@ -6,7 +6,8 @@ import { selectQuestions } from '@/analysis/questions/selector';
 import { pickDiscoveryCards } from '@/lib/discovery-pick';
 import { formatPercent } from '@/lib/format';
 import { AlertIcon, ArrowUpIcon, ChevronIcon, SpinnerIcon } from '@/components/icons';
-import { FieldLabel, TONE_RULE, TONE_TEXT, changeColor } from '@/components/ui';
+import { TONE_RULE, TONE_TEXT, changeColor } from '@/components/ui';
+import { loadContext } from '@/components/useMarketFeeds';
 import type {
   Analysis,
   AssetSnapshot,
@@ -35,7 +36,7 @@ const ANSWER_DELAY_MS = 550;
  * The guided investigation loop that follows the main diagnosis: contextual
  * follow-up cards, inline answers, and an optional "explore another coin"
  * footer. Fully client-side and ephemeral — nothing here is persisted, and a
- * fresh `key={asset.id}` remount (see AnalyzePanel) resets it on every new
+ * fresh `key={asset.id}` remount (see Workspace) resets it on every new
  * search.
  *
  * Tier-1 questions (WHY/STRENGTH/CHANGE) answer instantly from props alone —
@@ -59,12 +60,10 @@ export function Investigation({ asset, analysis }: { asset: AssetSnapshot; analy
   useEffect(() => {
     const controller = new AbortController();
 
-    fetch('/api/context', { signal: controller.signal })
-      .then((r) => r.json())
-      .then((body: ContextPayload) => setContext(body))
-      .catch(() => {
-        /* CONTEXT questions simply stay unavailable — the core page is unaffected. */
-      });
+    // Shared with the dossier's market-context panel: one request, not two.
+    void loadContext().then((body) => {
+      if (!controller.signal.aborted) setContext(body);
+    });
 
     fetch('/api/discover', { signal: controller.signal })
       .then((r) => r.json())
@@ -114,55 +113,54 @@ export function Investigation({ asset, analysis }: { asset: AssetSnapshot; analy
   const hasHistory = answered.length > 0;
 
   return (
-    <div ref={topRef} className="mt-8 space-y-5 scroll-mt-20 sm:mt-10">
-      {hasHistory ? (
-        <div className="flex items-center justify-between">
-          <FieldLabel>Investigation</FieldLabel>
-          {trailExpanded ? (
+    <section ref={topRef} className="mt-10 scroll-mt-20" aria-labelledby="follow-up">
+      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-edge pb-3">
+        <div>
+          <h2 id="follow-up" className="wide text-[22px] font-semibold tracking-display text-ink">
+            Keep investigating
+          </h2>
+          <p className="mt-1 text-[13px] text-faint">
+            Questions this data can actually answer. Each answer shows the numbers it used.
+          </p>
+        </div>
+        {hasHistory ? (
+          trailExpanded ? (
             <button
               type="button"
               onClick={() => {
                 setTrailExpanded(false);
                 topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
               }}
-              className="inline-flex items-center gap-1.5 text-[11.5px] text-muted transition-colors duration-150 hover:text-mint"
+              className="inline-flex items-center gap-1.5 text-[12.5px] text-muted transition-colors hover:text-teal"
             >
               <ArrowUpIcon className="h-3 w-3" />
-              Back to overview
+              Collapse answers
             </button>
           ) : (
-            <button
-              type="button"
-              onClick={() => setTrailExpanded(true)}
-              className="text-[11.5px] text-mint transition-colors duration-150 hover:brightness-110"
-            >
-              {answered.length} question{answered.length === 1 ? '' : 's'} explored — Resume
+            <button type="button" onClick={() => setTrailExpanded(true)} className="text-[12.5px] text-teal hover:brightness-110">
+              Show {answered.length} answer{answered.length === 1 ? '' : 's'}
             </button>
-          )}
-        </div>
-      ) : null}
+          )
+        ) : null}
+      </div>
 
       {trailExpanded && hasHistory ? (
-        <div className="space-y-3">
-          {answered.map((entry) => (
-            <AnsweredCard key={entry.id} answer={entry.answer} />
+        <ol className="mt-5 space-y-3">
+          {answered.map((entry, index) => (
+            <li key={entry.id}>
+              <AnsweredCard answer={entry.answer} index={index + 1} />
+            </li>
           ))}
-        </div>
+        </ol>
       ) : null}
 
       {errorId ? (
-        <div className="rounded-[3px] border border-amber/25 bg-amber/[0.03] px-5 py-4" role="alert">
+        <div className="mt-4 rounded-[6px] border border-amber/25 bg-amber/[0.04] px-5 py-4" role="alert">
           <div className="flex items-start gap-3">
-            <span className="mt-[2px] shrink-0 text-amber">
-              <AlertIcon className="h-[14px] w-[14px]" />
-            </span>
+            <AlertIcon className="mt-[2px] h-[14px] w-[14px] shrink-0 text-amber" />
             <div className="min-w-0">
-              <p className="text-[13.5px] text-ink">We couldn&apos;t complete that analysis right now.</p>
-              <button
-                type="button"
-                onClick={() => handleAsk(errorId)}
-                className="mt-2.5 rounded-[2px] border border-edge px-2.5 py-1 text-[12px] text-muted transition-colors duration-150 hover:border-mint/50 hover:text-mint"
-              >
+              <p className="text-[14px] text-ink">That answer could not be built from the current data.</p>
+              <button type="button" onClick={() => handleAsk(errorId)} className="chip mt-2.5">
                 Try again
               </button>
             </div>
@@ -171,70 +169,69 @@ export function Investigation({ asset, analysis }: { asset: AssetSnapshot; analy
       ) : null}
 
       {(trailExpanded || !hasHistory) && (nextQuestions.length > 0 || pendingId) ? (
-        <div className="space-y-3">
-          <FieldLabel>What do you want to know next?</FieldLabel>
-          <div className="grid gap-2.5 sm:grid-cols-3">
+        <div className="mt-5">
+          <p className="text-[13px] text-muted">{hasHistory ? 'Next questions' : 'Start with one of these'}</p>
+          <div className="mt-2.5 grid gap-2.5 sm:grid-cols-3">
             {nextQuestions.map((q) => (
               <button
                 key={q.id}
                 type="button"
                 disabled={pendingId !== null}
                 onClick={() => handleAsk(q.id)}
-                className="group flex min-h-[64px] items-center justify-between gap-2 rounded-[3px] border border-edge bg-panel px-4 py-3.5 text-left text-[13px] text-ink transition-colors duration-150 hover:border-mint/40 hover:text-mint disabled:cursor-not-allowed disabled:opacity-50"
+                aria-busy={pendingId === q.id}
+                className="group flex min-h-[68px] items-center justify-between gap-3 rounded-[6px] border border-edge bg-panel px-4 py-3.5 text-left text-[14px] text-ink transition-colors hover:border-teal/50 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <span>{q.label}</span>
                 {pendingId === q.id ? (
-                  <SpinnerIcon className="h-3.5 w-3.5 shrink-0 text-mint" />
+                  <SpinnerIcon className="h-3.5 w-3.5 shrink-0 text-teal" />
                 ) : (
-                  <ChevronIcon className="h-3.5 w-3.5 shrink-0 -rotate-90 text-faint transition-colors duration-150 group-hover:text-mint" />
+                  <ChevronIcon className="h-3.5 w-3.5 shrink-0 -rotate-90 text-faint transition-colors group-hover:text-teal" />
                 )}
               </button>
             ))}
           </div>
-          {pendingId ? (
-            <p className="tnum text-[11.5px] uppercase tracking-[0.12em] text-faint">Analyzing…</p>
-          ) : null}
         </div>
       ) : null}
 
       <DiscoveryFooter pool={movers} currentAssetId={asset.id} />
-    </div>
+    </section>
   );
 }
 
-function AnsweredCard({ answer }: { answer: QuestionAnswer }) {
+function AnsweredCard({ answer, index }: { answer: QuestionAnswer; index: number }) {
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className="panel animate-fade-in overflow-hidden">
-      <div className="relative px-5 py-4 sm:px-6">
-        <span className={`absolute left-0 top-0 h-full w-[2px] ${TONE_RULE[answer.tone]}`} />
-        <h4 className={`text-[15px] font-medium tracking-tight ${TONE_TEXT[answer.tone]}`}>{answer.title}</h4>
-        <p className="mt-2 text-[13.5px] leading-relaxed text-muted">{answer.summary}</p>
-
-        {answer.dataUsed.length > 0 ? (
-          <button
-            type="button"
-            onClick={() => setExpanded((v) => !v)}
-            aria-expanded={expanded}
-            className="mt-3 inline-flex items-center gap-1.5 text-[11.5px] text-faint transition-colors duration-150 hover:text-mint"
-          >
-            <ChevronIcon className={`h-3 w-3 transition-transform duration-150 ${expanded ? 'rotate-180' : ''}`} />
-            {expanded ? 'Hide the numbers' : 'Go deeper'}
-          </button>
-        ) : null}
-
-        {expanded ? (
-          <dl className="mt-3 space-y-1.5 border-t border-edge-soft pt-3">
-            {answer.dataUsed.map((point) => (
-              <div key={point.label} className="flex items-baseline justify-between gap-4">
-                <dt className="text-[12px] text-muted">{point.label}</dt>
-                <dd className="tnum text-[12px] text-ink">{point.value}</dd>
-              </div>
-            ))}
-          </dl>
-        ) : null}
+    <div className="surface relative animate-fade-in overflow-hidden px-5 py-4 sm:px-6">
+      <span className={`absolute left-0 top-0 h-full w-[3px] ${TONE_RULE[answer.tone]}`} aria-hidden="true" />
+      <div className="flex items-baseline gap-3">
+        <span className="tnum text-[12px] text-faint">Q{index}</span>
+        <h3 className={`text-[16px] font-semibold tracking-tight ${TONE_TEXT[answer.tone]}`}>{answer.title}</h3>
       </div>
+      <p className="mt-2 max-w-[70ch] text-[14px] leading-relaxed text-muted">{answer.summary}</p>
+
+      {answer.dataUsed.length > 0 ? (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+          className="mt-3 inline-flex items-center gap-1.5 text-[12.5px] text-faint transition-colors hover:text-teal"
+        >
+          <ChevronIcon className={`h-3 w-3 transition-transform duration-150 ${expanded ? 'rotate-180' : ''}`} />
+          {expanded ? 'Hide the numbers' : 'Show the numbers'}
+        </button>
+      ) : null}
+
+      {expanded ? (
+        <dl className="mt-3 grid gap-x-8 border-t border-edge-soft pt-3 sm:grid-cols-2">
+          {answer.dataUsed.map((point) => (
+            <div key={point.label} className="flex items-baseline justify-between gap-4 py-1">
+              <dt className="text-[12.5px] text-muted">{point.label}</dt>
+              <dd className="tnum text-[12.5px] text-ink">{point.value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
     </div>
   );
 }
@@ -281,23 +278,21 @@ function DiscoveryFooter({ pool, currentAssetId }: { pool: AssetSnapshot[] | nul
   if (candidates.length === 0) return null;
 
   return (
-    <section className="border-t border-edge-soft pt-6">
-      <FieldLabel>Done exploring?</FieldLabel>
-      <div className="mt-3 grid gap-2.5 sm:grid-cols-3">
+    <div className="mt-8 border-t border-edge-soft pt-5">
+      <p className="text-[13px] text-muted">Or investigate another large-cap asset</p>
+      <div className="mt-2.5 grid gap-2.5 sm:grid-cols-3">
         {candidates.map((coin) => (
           <a
             key={coin.id}
             href={`/?q=${encodeURIComponent(coin.symbol)}`}
             onClick={() => recordDiscoveryClick(coin.symbol)}
-            className="flex flex-col gap-1 rounded-[3px] border border-edge bg-panel px-4 py-3.5 transition-colors duration-150 hover:border-mint/40"
+            className="flex items-baseline justify-between gap-3 rounded-[6px] border border-edge bg-panel px-4 py-3.5 transition-colors hover:border-teal/50"
           >
-            <span className="tnum text-[13px] font-medium text-ink">{coin.symbol}</span>
-            <span className={`tnum text-[12px] ${changeColor(coin.percentChange24h)}`}>
-              {formatPercent(coin.percentChange24h)}
-            </span>
+            <span className="ident text-[13.5px] text-ink">{coin.symbol}</span>
+            <span className={`tnum text-[13px] ${changeColor(coin.percentChange24h)}`}>{formatPercent(coin.percentChange24h)} 24h</span>
           </a>
         ))}
       </div>
-    </section>
+    </div>
   );
 }

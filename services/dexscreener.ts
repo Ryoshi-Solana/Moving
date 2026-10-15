@@ -4,7 +4,7 @@ import { cached } from '@/lib/cache';
 import { classifyInput, slugify } from '@/lib/asset-input';
 import { AppError } from '@/lib/errors';
 import { explorerFor } from '@/services/normalize';
-import type { AssetSnapshot, ContractRef } from '@/types';
+import type { AssetSnapshot, ContractRef, DexTxnCount, DexWindowSet } from '@/types';
 
 const API_BASE = 'https://api.dexscreener.com';
 const CACHE_TTL_SECONDS = 60;
@@ -196,8 +196,42 @@ export function normalizeDexPair(pair: DexPair): AssetSnapshot {
     // Do not manufacture a quote timestamp from the server's local clock.
     lastUpdated: null,
     dataSource: 'DexScreener',
-    dataSourceUrl: safeUrl
+    dataSourceUrl: safeUrl,
+    dex: {
+      chainId,
+      dexId: typeof pair.dexId === 'string' ? pair.dexId : null,
+      pairAddress: typeof pair.pairAddress === 'string' && /^[A-Za-z0-9]{20,80}$/.test(pair.pairAddress) ? pair.pairAddress : null,
+      quoteSymbol: typeof pair.quoteToken?.symbol === 'string' ? pair.quoteToken.symbol : null,
+      liquidityUsd: finite(pair.liquidity?.usd),
+      pairCreatedAt: validTimestamp(pair.pairCreatedAt),
+      priceChange: windowSet(pair.priceChange),
+      volume: windowSet(pair.volume),
+      txns: { h1: txnCount(pair.txns?.h1), h24: txnCount(pair.txns?.h24) }
+    }
   };
+}
+
+function windowSet(source: Record<string, number | undefined> | null | undefined): DexWindowSet {
+  return {
+    m5: finite(source?.m5),
+    h1: finite(source?.h1),
+    h6: finite(source?.h6),
+    h24: finite(source?.h24)
+  };
+}
+
+function txnCount(value: { buys?: number; sells?: number } | undefined): DexTxnCount | null {
+  const buys = finite(value?.buys);
+  const sells = finite(value?.sells);
+  if (buys === null || sells === null || buys < 0 || sells < 0) return null;
+  return { buys: Math.round(buys), sells: Math.round(sells) };
+}
+
+function validTimestamp(value: number | null | undefined): string | null {
+  const ms = finite(value);
+  // Reject anything before 2015 or in the future — no guessed dates.
+  if (ms === null || ms < 1_420_070_400_000 || ms > Date.now() + 86_400_000) return null;
+  return new Date(ms).toISOString();
 }
 
 function chainName(chainId: string): string {

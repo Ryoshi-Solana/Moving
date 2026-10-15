@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { checkRateLimit, clientKeyFromHeaders } from '@/lib/rate-limit';
 import { getMarketFeeds } from '@/services/trending';
-import type { AssetSnapshot } from '@/types';
+import type { AssetSnapshot, DiscoveryBoard, FieldPoint } from '@/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -10,6 +10,9 @@ export const dynamic = 'force-dynamic';
 export interface TrendingResponse {
   trending: AssetSnapshot[] | null;
   gainers: AssetSnapshot[] | null;
+  field: FieldPoint[] | null;
+  boards: DiscoveryBoard[] | null;
+  asOf: string | null;
 }
 
 /**
@@ -25,7 +28,7 @@ export interface TrendingResponse {
 export async function GET(request: Request): Promise<NextResponse<TrendingResponse>> {
   const limit = checkRateLimit(clientKeyFromHeaders(request.headers));
   if (!limit.ok) {
-    return NextResponse.json({ trending: null, gainers: null });
+    return NextResponse.json({ trending: null, gainers: null, field: null, boards: null, asOf: null });
   }
 
   const feeds = await getMarketFeeds();

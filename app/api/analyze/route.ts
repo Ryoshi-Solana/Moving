@@ -5,6 +5,7 @@ import { SERVER_CONFIG } from '@/lib/server-config';
 import { AppError, toAppError } from '@/lib/errors';
 import { checkRateLimit, clientKeyFromHeaders } from '@/lib/rate-limit';
 import { sanitizeQuery } from '@/lib/asset-input';
+import { historySourceFor } from '@/lib/history';
 import { resolveAsset } from '@/services/resolve-asset';
 import type { AnalyzeResponse, ApiErrorBody } from '@/types';
 
@@ -41,7 +42,8 @@ export async function GET(request: Request): Promise<NextResponse<AnalyzeRespons
     const payload: AnalyzeResponse = {
       asset,
       analysis: analyze(asset),
-      generatedAt: new Date().toISOString()
+      generatedAt: new Date().toISOString(),
+      history: historySourceFor(asset)
     };
 
     return NextResponse.json(payload, {

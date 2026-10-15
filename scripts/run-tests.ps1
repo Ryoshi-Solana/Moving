@@ -23,7 +23,7 @@ try {
   }
 
   $allPassed = $true
-  foreach ($name in @('test-analysis', 'test-resolution', 'test-integration', 'test-questions', 'test-market-feeds', 'test-dexscreener')) {
+  foreach ($name in @('test-analysis', 'test-resolution', 'test-integration', 'test-questions', 'test-market-feeds', 'test-dexscreener', 'test-intelligence')) {
     Write-Host "`n--- $name ---" -ForegroundColor Cyan
     & node --experimental-strip-types (Join-Path $stage "$name.ts")
     if ($LASTEXITCODE -ne 0) { $allPassed = $false }

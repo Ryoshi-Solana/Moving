@@ -1,4 +1,6 @@
-import type { AssetSnapshot } from '@/types';
+import { THRESHOLDS } from '@/analysis/signals';
+import { formatPercent, formatRatio } from '@/lib/format';
+import type { AssetSnapshot, BoardEntry, DiscoveryBoard, FieldPoint } from '@/types';
 
 /**
  * MOVING's own market-activity feeds ("Trending Coins" and "Top Gainers 24h"),
@@ -102,4 +104,115 @@ export function selectTopGainers(pool: AssetSnapshot[], count = 10): AssetSnapsh
     .filter((asset) => (asset.percentChange24h ?? 0) > 0)
     .sort((a, b) => (b.percentChange24h ?? 0) - (a.percentChange24h ?? 0))
     .slice(0, count);
+}
+
+/* ------------------------------------------------------------------ *
+ * Move field + discovery boards
+ *
+ * Both are computed from the same cached top-100 pool as the tickers, so they
+ * add no upstream requests. Every board states its exact screening rule and
+ * every entry carries a number-backed reason, so nothing appears on a board
+ * merely because it was present in an API response.
+ * ------------------------------------------------------------------ */
+
+/** Every eligible asset with both a 24h price change and a 24h volume change. */
+export function buildMoveField(pool: AssetSnapshot[]): FieldPoint[] {
+  return dedupeBySymbol(pool.filter(isEligible))
+    .filter((asset) => asset.percentChange24h !== null && asset.volumeChange24h !== null)
+    .map((asset) => ({
+      id: asset.id,
+      symbol: asset.symbol,
+      name: asset.name,
+      rank: asset.rank,
+      price: asset.price,
+      priceChange24h: asset.percentChange24h as number,
+      volumeChange24h: asset.volumeChange24h as number,
+      turnover: asset.volumeToMarketCap,
+      marketCap: asset.marketCap
+    }));
+}
+
+const BOARD_SIZE = 5;
+const UNCONFIRMED_MIN_MOVE = 5;
+
+function entry(asset: AssetSnapshot, reason: string): BoardEntry {
+  return {
+    id: asset.id,
+    symbol: asset.symbol,
+    name: asset.name,
+    rank: asset.rank,
+    priceChange24h: asset.percentChange24h,
+    reason
+  };
+}
+
+export function buildDiscoveryBoards(pool: AssetSnapshot[]): DiscoveryBoard[] {
+  const eligible = dedupeBySymbol(pool.filter(isEligible));
+  const pct = (value: number | null) => formatPercent(value);
+
+  const biggest = [...eligible]
+    .filter((a) => Math.abs(a.percentChange24h ?? 0) >= THRESHOLDS.move.noise)
+    .sort((a, b) => Math.abs(b.percentChange24h ?? 0) - Math.abs(a.percentChange24h ?? 0))
+    .slice(0, BOARD_SIZE)
+    .map((a) => entry(a, `Price ${pct(a.percentChange24h)} in 24h`));
+
+  const surge = eligible
+    .filter((a) => (a.volumeChange24h ?? -Infinity) >= THRESHOLDS.volume.expanding)
+    .sort((a, b) => (b.volumeChange24h ?? 0) - (a.volumeChange24h ?? 0))
+    .slice(0, BOARD_SIZE)
+    .map((a) => entry(a, `Volume ${pct(a.volumeChange24h)} vs the prior 24h, price ${pct(a.percentChange24h)}`));
+
+  const unconfirmed = eligible
+    .filter(
+      (a) =>
+        Math.abs(a.percentChange24h ?? 0) >= UNCONFIRMED_MIN_MOVE &&
+        a.volumeChange24h !== null &&
+        a.volumeChange24h <= 0
+    )
+    .sort((a, b) => Math.abs(b.percentChange24h ?? 0) - Math.abs(a.percentChange24h ?? 0))
+    .slice(0, BOARD_SIZE)
+    .map((a) => entry(a, `Price ${pct(a.percentChange24h)} while volume ${pct(a.volumeChange24h)}`));
+
+  const turnover = eligible
+    .filter((a) => (a.volumeToMarketCap ?? 0) >= THRESHOLDS.turnover.elevated)
+    .sort((a, b) => (b.volumeToMarketCap ?? 0) - (a.volumeToMarketCap ?? 0))
+    .slice(0, BOARD_SIZE)
+    .map((a) => entry(a, `${formatRatio(a.volumeToMarketCap)} of market cap traded in 24h`));
+
+  return [
+    {
+      key: 'biggest-moves',
+      title: 'Largest moves',
+      criterion: `Biggest absolute 24h price change, at least ${THRESHOLDS.move.noise}% either way.`,
+      entries: biggest
+    },
+    {
+      key: 'volume-surge',
+      title: 'Volume surging',
+      criterion: `24h volume at least ${THRESHOLDS.volume.expanding}% above the prior 24h, whatever price did.`,
+      entries: surge
+    },
+    {
+      key: 'unconfirmed-moves',
+      title: 'Moving without volume',
+      criterion: `Price moved ${UNCONFIRMED_MIN_MOVE}% or more while 24h volume fell or stayed flat — moves with less participation behind them.`,
+      entries: unconfirmed
+    },
+    {
+      key: 'heavy-turnover',
+      title: 'Heavy turnover',
+      criterion: `24h volume worth at least ${THRESHOLDS.turnover.elevated} of market cap — unusually active trading for the asset's size.`,
+      entries: turnover
+    }
+  ];
+}
+
+/** Newest quote timestamp in the pool, so the UI can state how fresh the boards are. */
+export function poolAsOf(pool: AssetSnapshot[]): string | null {
+  let newest = 0;
+  for (const asset of pool) {
+    const t = asset.lastUpdated ? Date.parse(asset.lastUpdated) : NaN;
+    if (Number.isFinite(t) && t > newest) newest = t;
+  }
+  return newest > 0 ? new Date(newest).toISOString() : null;
 }
