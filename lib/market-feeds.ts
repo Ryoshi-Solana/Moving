@@ -51,6 +51,11 @@ const EXCLUDED_SYMBOLS = new Set([
   'WEETH'
 ]);
 
+/** True for stablecoins and wrapped/staked derivatives, which say nothing about a move. */
+export function isExcludedAsset(symbol: string): boolean {
+  return EXCLUDED_SYMBOLS.has(symbol.toUpperCase());
+}
+
 function isEligible(asset: AssetSnapshot): boolean {
   return (
     !EXCLUDED_SYMBOLS.has(asset.symbol.toUpperCase()) &&
@@ -202,7 +207,7 @@ export function buildDiscoveryBoards(pool: AssetSnapshot[]): DiscoveryBoard[] {
     {
       key: 'unconfirmed-moves',
       title: 'Moving without volume',
-      criterion: `Price moved ${UNCONFIRMED_MIN_MOVE}% or more while 24h volume fell or stayed flat — moves with less participation behind them.`,
+      criterion: `Price moved ${UNCONFIRMED_MIN_MOVE}% or more either way while 24h volume did not rise — moves with less participation behind them.`,
       entries: unconfirmed
     },
     {

@@ -10,7 +10,7 @@ import type { HistoryRange, HistoryResponse, HistorySource } from '@/types';
 const W = 760;
 const H = 300;
 const PRICE_H = 214;
-const PAD = { top: 12, right: 64, bottom: 24, left: 8 };
+const PAD = { top: 12, right: 76, bottom: 24, left: 8 };
 
 type State = { status: 'loading' } | { status: 'done'; data: HistoryResponse } | { status: 'error' };
 
@@ -23,7 +23,21 @@ export function PriceChart({ source, refPrice, symbol }: { source: HistorySource
   const [range, setRange] = useState<HistoryRange>('7D');
   const [state, setState] = useState<State>({ status: 'loading' });
   const [cursor, setCursor] = useState<number | null>(null);
+  const [k, setK] = useState(1);
   const svgRef = useRef<SVGSVGElement>(null);
+  const hasChart = state.status === 'done' && state.data.status === 'verified';
+
+  // Axis text is in viewBox units; keep it legible when the chart is narrow.
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(([entry]) => {
+      const width = entry.contentRect.width;
+      if (width > 0) setK(Math.min(2, Math.max(1, W / width)));
+    });
+    observer.observe(svg);
+    return () => observer.disconnect();
+  }, [hasChart]);
 
   useEffect(() => {
     if (!source || refPrice === null) return;
@@ -61,7 +75,7 @@ export function PriceChart({ source, refPrice, symbol }: { source: HistorySource
     const line = candles.map((c, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(c.c).toFixed(1)}`).join('');
     const area = `${line}L${x(candles.length - 1).toFixed(1)},${PRICE_H}L${x(0).toFixed(1)},${PRICE_H}Z`;
     const ticks = [hi - (hi - lo) * 0.1, (hi + lo) / 2, lo + (hi - lo) * 0.1];
-    const barW = Math.max(1, (innerW * (candles.length > 1 ? Math.min(...candles.slice(1).map((c, i) => c.t - candles[i].t)) : span)) / span - 1);
+    const barW = Math.min(14, Math.max(1, (innerW * (candles.length > 1 ? Math.min(...candles.slice(1).map((c, i) => c.t - candles[i].t)) : span)) / span - 1));
     return { x, y, line, area, maxVol, volTop, volH, ticks, barW, t0, span, innerW };
   }, [candles, summary]);
 
@@ -88,7 +102,7 @@ export function PriceChart({ source, refPrice, symbol }: { source: HistorySource
           </h2>
           {summary && data?.status === 'verified' ? (
             <span className={`tnum text-[13px] ${changeColor(summary.changePct)}`}>
-              {formatPercent(summary.changePct)} over {range}
+              {formatPercent(summary.changePct)} {coverageLabel(candles, data.interval, range)}
             </span>
           ) : null}
         </div>
@@ -162,7 +176,7 @@ export function PriceChart({ source, refPrice, symbol }: { source: HistorySource
                 {geometry.ticks.map((t) => (
                   <g key={t}>
                     <line x1={PAD.left} x2={W - PAD.right} y1={geometry.y(t)} y2={geometry.y(t)} stroke="rgba(158,204,196,0.07)" />
-                    <text x={W - PAD.right + 8} y={geometry.y(t) + 4} className="fill-faint text-[11px] tnum">
+                    <text x={W - PAD.right + 8} y={geometry.y(t) + 4} className="fill-faint tnum" style={{ fontSize: 11 * k }}>
                       {formatPrice(t)}
                     </text>
                   </g>
@@ -189,10 +203,10 @@ export function PriceChart({ source, refPrice, symbol }: { source: HistorySource
                     <circle cx={geometry.x(cursor)} cy={geometry.y(active.c)} r={4} fill="#080C0D" stroke={stroke} strokeWidth={2} />
                   </g>
                 ) : null}
-                <text x={PAD.left} y={H - 6} className="fill-faint text-[11px] tnum">
+                <text x={PAD.left} y={H - 4} className="fill-faint tnum" style={{ fontSize: 11 * k }}>
                   {formatTime(candles[0].t, range)}
                 </text>
-                <text x={W - PAD.right} y={H - 6} textAnchor="end" className="fill-faint text-[11px] tnum">
+                <text x={W - PAD.right} y={H - 4} textAnchor="end" className="fill-faint tnum" style={{ fontSize: 11 * k }}>
                   {formatTime(candles[candles.length - 1].t, range)}
                 </text>
               </svg>
@@ -244,6 +258,17 @@ function Empty({ title, children }: { title: string; children: React.ReactNode }
       <p className="mt-2 max-w-[60ch] text-[13px] leading-relaxed text-muted">{children}</p>
     </div>
   );
+}
+
+const RANGE_SECONDS: Record<HistoryRange, number> = { '1D': 86_400, '7D': 604_800, '30D': 2_592_000 };
+
+/** "over 7D", or the real span when the venue has less history than the range (new pools). */
+function coverageLabel(candles: { t: number }[], interval: number, range: HistoryRange): string {
+  if (candles.length === 0) return `over ${range}`;
+  const covered = candles[candles.length - 1].t - candles[0].t + interval;
+  if (covered >= RANGE_SECONDS[range] * 0.8) return `over ${range}`;
+  const hours = covered / 3600;
+  return `over the ${hours < 48 ? `${Math.max(1, Math.round(hours))}h` : `${Math.round(hours / 24)}d`} of history available`;
 }
 
 function intervalLabel(seconds: number): string {

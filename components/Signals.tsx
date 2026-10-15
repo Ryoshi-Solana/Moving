@@ -86,7 +86,7 @@ export function SignalGauges({ signals }: { signals: Signals }) {
           value={signals.turnover === null ? null : Math.min(signals.turnover, turnoverMax)}
           min={0}
           max={turnoverMax}
-          display={signals.turnover === null ? 'n/a' : `${formatRatio(signals.turnover)} · ${signals.turnoverLevel}`}
+          display={signals.turnover === null ? 'n/a' : `${formatRatio(signals.turnover)}, ${signals.turnoverLevel}`}
           marks={[
             { at: THRESHOLDS.turnover.normal, label: 'normal' },
             { at: THRESHOLDS.turnover.elevated, label: 'elevated' }

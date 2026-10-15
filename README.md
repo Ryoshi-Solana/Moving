@@ -178,7 +178,7 @@ its rule and each row a number-backed reason:
 
 - **Largest moves** — biggest absolute 24h price change, at least 2%.
 - **Volume surging** — 24h volume at least 100% above the prior 24h.
-- **Moving without volume** — price moved 5%+ while volume fell or stayed flat.
+- **Moving without volume** — price moved 5%+ either way while 24h volume did not rise.
 - **Heavy turnover** — 24h volume at least 0.15 of market cap.
 
 Thresholds reuse `analysis/signals.ts` so the screens and the engine agree.

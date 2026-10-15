@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { selectQuestions } from '@/analysis/questions/selector';
 import { pickDiscoveryCards } from '@/lib/discovery-pick';
+import { isExcludedAsset } from '@/lib/market-feeds';
 import { formatPercent } from '@/lib/format';
 import { AlertIcon, ArrowUpIcon, ChevronIcon, SpinnerIcon } from '@/components/icons';
 import { TONE_RULE, TONE_TEXT, changeColor } from '@/components/ui';
@@ -270,7 +271,9 @@ function DiscoveryFooter({ pool, currentAssetId }: { pool: AssetSnapshot[] | nul
   // stay stable while the user answers other questions on the same page.
   const candidates = useMemo(() => {
     if (!pool || pool.length === 0) return [];
-    return pickDiscoveryCards(pool, currentAssetId, DISCOVERY_COUNT, readRecentDiscoveryClicks());
+    // Stablecoins and wrapped tokens are not worth an investigation.
+    const candidatesPool = pool.filter((asset) => !isExcludedAsset(asset.symbol));
+    return pickDiscoveryCards(candidatesPool, currentAssetId, DISCOVERY_COUNT, readRecentDiscoveryClicks());
   }, [pool, currentAssetId]);
 
   // No dead button: the whole footer is omitted when discovery data never
