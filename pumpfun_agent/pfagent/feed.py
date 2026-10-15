@@ -33,6 +33,9 @@ class PumpPortalFeed:
         self.connected = False
         self.last_message_at = 0.0
         self.reconnects = 0
+        self.msg_types: dict[str, int] = {}
+        self._pending_subs: list[str] = []
+        self._unknown_logged = 0
 
     async def _send(self, payload: dict) -> None:
         if self._ws is not None:
@@ -42,11 +45,20 @@ class PumpPortalFeed:
                 log.debug("send gagal: %s", exc)
 
     async def subscribe_trades(self, mints: list[str]) -> None:
+        # Tidak langsung dikirim: dikumpulkan lalu dikirim sekaligus oleh flush_subscriptions,
+        # karena PumpPortal tidak suka satu pesan subscribe per token.
         new = [m for m in mints if m not in self.trade_subs]
         if not new:
             return
         self.trade_subs.update(new)
-        await self._send({"method": "subscribeTokenTrade", "keys": new})
+        self._pending_subs.extend(new)
+
+    async def flush_subscriptions(self) -> None:
+        if not self._pending_subs or self._ws is None:
+            return
+        keys, self._pending_subs = self._pending_subs, []
+        for i in range(0, len(keys), 100):
+            await self._send({"method": "subscribeTokenTrade", "keys": keys[i:i + 100]})
 
     async def unsubscribe_trades(self, mints: list[str]) -> None:
         gone = [m for m in mints if m in self.trade_subs]
@@ -69,10 +81,8 @@ class PumpPortalFeed:
                     log.info("feed tersambung")
                     await ws.send(json.dumps({"method": "subscribeNewToken"}))
                     await ws.send(json.dumps({"method": "subscribeMigration"}))
-                    if self.trade_subs:
-                        keys = list(self.trade_subs)
-                        for i in range(0, len(keys), 100):
-                            await ws.send(json.dumps({"method": "subscribeTokenTrade", "keys": keys[i:i + 100]}))
+                    self._pending_subs = list(self.trade_subs)
+                    await self.flush_subscriptions()
                     async for raw in ws:
                         now = time.time()
                         self.last_message_at = now
@@ -82,6 +92,11 @@ class PumpPortalFeed:
                             continue
                         if not isinstance(msg, dict):
                             continue
+                        kind = str(msg.get("txType") or ("message" if "message" in msg else "lain"))
+                        self.msg_types[kind] = self.msg_types.get(kind, 0) + 1
+                        if kind not in ("create", "buy", "sell") and self._unknown_logged < 20:
+                            self._unknown_logged += 1
+                            log.info("pesan feed lain: %s", str(raw)[:300])
                         if self._record_file:
                             self._record_file.write(json.dumps({"t": now, "m": msg}) + "\n")
                         try:

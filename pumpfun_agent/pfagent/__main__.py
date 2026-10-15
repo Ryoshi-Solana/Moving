@@ -90,6 +90,14 @@ async def run(settings: Settings) -> None:
         except NotImplementedError:
             pass
 
+    async def subscription_loop():
+        while not stop.is_set():
+            try:
+                await feed.flush_subscriptions()
+            except Exception:
+                log.exception("flush subscribe error")
+            await asyncio.sleep(2)
+
     async def maintenance_loop():
         last_feed_warn = 0.0
         last_stats = time.time()
@@ -108,14 +116,15 @@ async def run(settings: Settings) -> None:
                 last_stats = now
                 c = agent.counters
                 log.info("stats: token_baru=%d trade=%d kandidat=%d entry=%d exit=%d dipantau=%d "
-                         "posisi=%d equity=%.4f feed=%s reconnect=%d tolak_teratas=%s",
+                         "posisi=%d equity=%.4f feed=%s reconnect=%d pesan=%s tolak_teratas=%s",
                          c["tokens_seen"], c["trades_seen"], c["candidates"], c["entries"], c["exits"],
                          len(agent.market.tokens), len(agent.positions), agent.equity(),
-                         "ok" if feed.connected else "putus", feed.reconnects,
+                         "ok" if feed.connected else "putus", feed.reconnects, feed.msg_types,
                          agent.rejections.most_common(3))
             await asyncio.sleep(5)
 
-    tasks = [asyncio.create_task(feed.run()), asyncio.create_task(maintenance_loop())]
+    tasks = [asyncio.create_task(feed.run()), asyncio.create_task(maintenance_loop()),
+             asyncio.create_task(subscription_loop())]
     await stop.wait()
     log.info("berhenti…")
     feed.stop()

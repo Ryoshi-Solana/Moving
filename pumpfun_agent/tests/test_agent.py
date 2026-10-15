@@ -361,3 +361,27 @@ def test_restored_position_still_gets_time_exit(tmp_path):
     run(agent2.maintenance(later + 5))  # token sudah mati, tidak ada trade masuk
     assert not agent2.positions
     assert "WAKTU HABIS" in store2.closed_positions("paper")[0].exit_reason
+
+
+def test_feed_batches_trade_subscriptions():
+    from pfagent.feed import PumpPortalFeed
+
+    class FakeWS:
+        def __init__(self):
+            self.sent = []
+
+        async def send(self, data):
+            self.sent.append(json.loads(data))
+
+    async def scenario():
+        feed = PumpPortalFeed("wss://x", handler=None)
+        feed._ws = FakeWS()
+        for i in range(150):
+            await feed.subscribe_trades([f"m{i}"])
+        assert feed._ws.sent == []  # belum dikirim satu per satu
+        await feed.flush_subscriptions()
+        return feed._ws.sent
+
+    sent = run(scenario())
+    assert [len(m["keys"]) for m in sent] == [100, 50]
+    assert all(m["method"] == "subscribeTokenTrade" for m in sent)
