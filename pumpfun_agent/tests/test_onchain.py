@@ -43,9 +43,9 @@ def create_event():
     data += bytes(MINT) + bytes(Keypair().pubkey()) + bytes(USER) + bytes(creator)
     data += struct.pack("<qQQQQ", 1_760_000_000, 1_000_000_000_000_000,
                         30_000_000_000, 793_100_000_000_000, 1_000_000_000_000_000)
-    data += bytes(Keypair().pubkey()) + b"\\x00\\x00"
+    data += bytes(Keypair().pubkey()) + b"\x00\x00"
     data += bytes(Pubkey.from_string(SYSTEM_PROGRAM))
-    data += struct.pack("<QQ", 0, 0) + b"\\x00"
+    data += struct.pack("<QQ", 0, 0) + b"\x00"
     return data
 
 
