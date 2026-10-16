@@ -74,6 +74,7 @@ async def run(settings: Settings) -> None:
     agent = Agent(settings, params, store, broker, notify=tg.send, fetch_metadata=fetch)
     feed = PumpPortalFeed(settings.ws_url, agent.on_message, settings.record_path)
     trades = OnchainTradeFeed(settings.ws_url_list(), agent.on_message, settings.record_path)
+    trades.create_fallback = lambda: not feed.connected  # gunakan CreateEvent on-chain hanya saat PumpPortal putus
     agent.feed = trades  # engine mendaftarkan mint yang dipantau ke feed on-chain
 
     await agent.start()
