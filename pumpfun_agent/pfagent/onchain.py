@@ -171,6 +171,7 @@ class OnchainTradeFeed:
         self.last_trade_at = 0.0
         self.reconnects = 0
         self.stats = {"notifikasi": 0, "trade": 0, "create": 0, "dipakai": 0, "MB": 0.0}
+        self.create_fallback = None  # callable: true only while PumpPortal is disconnected
         self._stop = asyncio.Event()
         self._ws = None
         self._record_file = open(record_path, "a", encoding="utf-8", buffering=1) if record_path else None
@@ -201,6 +202,8 @@ class OnchainTradeFeed:
         for event in events:
             if event["txType"] == "create":
                 self.stats["create"] += 1
+                if self.create_fallback is not None and not self.create_fallback():
+                    continue
                 if self._record_file:
                     self._record_file.write(json.dumps({"t": now, "m": event}) + "\n")
                 try:
