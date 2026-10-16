@@ -60,7 +60,7 @@ def test_decode_create_event_matches_pumpportal_format():
     assert msg["createdAt"] == 1_760_000_000
     assert msg["vSolInBondingCurve"] == pytest.approx(30.0)
     assert msg["vTokensInBondingCurve"] == pytest.approx(1_000_000_000.0)
-    assert decode_create_event(b"\\x00" * 200) is None
+    assert decode_create_event(b"\x00" * 200) is None
 
 
 def test_events_from_logs_preserves_create_before_trade_order():
