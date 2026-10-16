@@ -39,7 +39,8 @@ class Settings:
     record_path: str = ""  # kalau diisi, semua event feed disimpan (jsonl) untuk replay
 
     ws_url: str = "wss://pumpportal.fun/api/data"
-    pumpportal_api_key: str = ""  # wajib untuk data trade (wallet PumpPortal berisi ≥0.02 SOL)
+    # websocket RPC Solana untuk trade on-chain (gratis); dipisah koma, dicoba bergiliran
+    solana_ws_urls: str = "wss://api.mainnet-beta.solana.com,wss://solana-rpc.publicnode.com"
     trade_api_url: str = "https://pumpportal.fun/api/trade-local"
     rpc_url: str = "https://api.mainnet-beta.solana.com"
 
@@ -63,7 +64,7 @@ class Settings:
             db_path=_env("AGENT_DB_PATH", "data/agent.db"),
             record_path=_env("AGENT_RECORD_PATH"),
             ws_url=_env("PUMPPORTAL_WS_URL", cls.ws_url),
-            pumpportal_api_key=_env("PUMPPORTAL_API_KEY"),
+            solana_ws_urls=_env("SOLANA_WS_URLS", cls.solana_ws_urls),
             trade_api_url=_env("PUMPPORTAL_TRADE_URL", cls.trade_api_url),
             rpc_url=_env("SOLANA_RPC_URL", cls.rpc_url),
             wallet_private_key=_env("WALLET_PRIVATE_KEY"),
@@ -75,11 +76,8 @@ class Settings:
             fetch_metadata=_env("FETCH_METADATA", "true").lower() != "false",
         )
 
-    def feed_url(self) -> str:
-        if not self.pumpportal_api_key:
-            return self.ws_url
-        sep = "&" if "?" in self.ws_url else "?"
-        return f"{self.ws_url}{sep}api-key={self.pumpportal_api_key}"
+    def ws_url_list(self) -> list[str]:
+        return [u.strip() for u in self.solana_ws_urls.split(",") if u.strip()]
 
     def validate(self) -> list[str]:
         """Kembalikan daftar error. Kosong = aman dijalankan."""

@@ -363,35 +363,6 @@ def test_restored_position_still_gets_time_exit(tmp_path):
     assert "WAKTU HABIS" in store2.closed_positions("paper")[0].exit_reason
 
 
-def test_feed_batches_trade_subscriptions():
-    from pfagent.feed import PumpPortalFeed
-
-    class FakeWS:
-        def __init__(self):
-            self.sent = []
-
-        async def send(self, data):
-            self.sent.append(json.loads(data))
-
-    async def scenario():
-        feed = PumpPortalFeed("wss://x", handler=None)
-        feed._ws = FakeWS()
-        for i in range(150):
-            await feed.subscribe_trades([f"m{i}"])
-        assert feed._ws.sent == []  # belum dikirim satu per satu
-        await feed.flush_subscriptions()
-        return feed._ws.sent
-
-    sent = run(scenario())
-    assert [len(m["keys"]) for m in sent] == [100, 50]
-    assert all(m["method"] == "subscribeTokenTrade" for m in sent)
-
-
-def test_feed_url_includes_api_key():
-    assert Settings().feed_url() == "wss://pumpportal.fun/api/data"
-    assert Settings(pumpportal_api_key="abc").feed_url() == "wss://pumpportal.fun/api/data?api-key=abc"
-
-
 def test_telegram_send_failure_does_not_raise():
     from pfagent.telegram_ui import TelegramUI
 

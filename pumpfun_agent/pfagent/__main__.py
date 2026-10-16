@@ -58,6 +58,7 @@ async def fetch_metadata_factory():
 
 async def run(settings: Settings) -> None:
     from .feed import PumpPortalFeed
+    from .onchain import OnchainTradeFeed
     from .telegram_ui import TelegramUI
 
     store = Store(settings.db_path)
@@ -71,8 +72,9 @@ async def run(settings: Settings) -> None:
     tg = TelegramUI(settings)
     fetch, http_client = (await fetch_metadata_factory()) if settings.fetch_metadata else (None, None)
     agent = Agent(settings, params, store, broker, notify=tg.send, fetch_metadata=fetch)
-    feed = PumpPortalFeed(settings.feed_url(), agent.on_message, settings.record_path)
-    agent.feed = feed
+    feed = PumpPortalFeed(settings.ws_url, agent.on_message, settings.record_path)
+    trades = OnchainTradeFeed(settings.ws_url_list(), agent.on_message, settings.record_path)
+    agent.feed = trades  # engine mendaftarkan mint yang dipantau ke feed on-chain
 
     await agent.start()
     try:
@@ -96,21 +98,10 @@ async def run(settings: Settings) -> None:
         except NotImplementedError:
             pass
 
-    async def subscription_loop():
-        while not stop.is_set():
-            try:
-                if feed.trade_access_denied and time.time() - feed.denied_at > 300:
-                    log.info("mencoba ulang akses data trade PumpPortal…")
-                    await feed.retry_trade_access()
-                await feed.flush_subscriptions()
-            except Exception:
-                log.exception("flush subscribe error")
-            await asyncio.sleep(2)
-
     async def maintenance_loop():
         last_feed_warn = 0.0
+        last_trade_warn = 0.0
         last_stats = time.time()
-        denied_warned = False
         trades_ok_announced = False
         while not stop.is_set():
             now = time.time()
@@ -122,34 +113,34 @@ async def run(settings: Settings) -> None:
             last_data = feed.last_message_at or agent.started_at
             if now - last_data > 120 and now - last_feed_warn > 900:
                 last_feed_warn = now
-                await agent.notify("⚠️ Tidak ada data dari PumpPortal >2 menit. SL tidak bisa bereaksi tanpa data!")
-            if feed.trade_access_denied and not denied_warned:
-                denied_warned = True
-                await agent.notify(
-                    "⚠️ <b>PumpPortal menolak data trade.</b> Agent bisa melihat token baru tapi "
-                    "tidak bisa melihat harga/volume, jadi tidak akan trading.\n"
-                    "Perlu PUMPPORTAL_API_KEY dari pumpportal.fun yang wallet-nya berisi ≥0.02 SOL."
-                )
+                await agent.notify("⚠️ Tidak ada token baru dari PumpPortal >2 menit.")
+            last_trade = trades.last_trade_at or agent.started_at
+            if now - last_trade > 120 and now - last_trade_warn > 900:
+                last_trade_warn = now
+                await agent.notify("⚠️ Tidak ada data trade on-chain >2 menit. SL tidak bisa bereaksi tanpa data! "
+                                   "Agent mencoba RPC lain otomatis.")
             if agent.counters["trades_seen"] > 0 and not trades_ok_announced:
                 trades_ok_announced = True
-                denied_warned = False
-                await agent.notify("✅ Data trade PumpPortal masuk. Agent mulai menilai token & paper trading.")
+                await agent.notify("✅ Data trade on-chain (gratis) masuk. Agent mulai menilai token & paper trading.")
             if now - last_stats >= 300:
                 last_stats = now
                 c = agent.counters
                 log.info("stats: token_baru=%d trade=%d kandidat=%d entry=%d exit=%d dipantau=%d "
-                         "posisi=%d equity=%.4f feed=%s reconnect=%d pesan=%s tolak_teratas=%s",
+                         "posisi=%d equity=%.4f pumpportal=%s %s onchain=%s %s reconnect=%d/%d tolak_teratas=%s",
                          c["tokens_seen"], c["trades_seen"], c["candidates"], c["entries"], c["exits"],
                          len(agent.market.tokens), len(agent.positions), agent.equity(),
-                         "ok" if feed.connected else "putus", feed.reconnects, feed.msg_types,
-                         agent.rejections.most_common(3))
+                         "ok" if feed.connected else "putus", feed.msg_types,
+                         trades.current_url if trades.connected else "putus",
+                         {k: round(v, 1) for k, v in trades.stats.items()},
+                         feed.reconnects, trades.reconnects, agent.rejections.most_common(3))
             await asyncio.sleep(5)
 
-    tasks = [asyncio.create_task(feed.run()), asyncio.create_task(maintenance_loop()),
-             asyncio.create_task(subscription_loop())]
+    tasks = [asyncio.create_task(feed.run()), asyncio.create_task(trades.run()),
+             asyncio.create_task(maintenance_loop())]
     await stop.wait()
     log.info("berhenti…")
     feed.stop()
+    trades.stop()
     for t in tasks:
         t.cancel()
     await asyncio.gather(*tasks, return_exceptions=True)
@@ -235,7 +226,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "check":
         print(f"mode: {settings.mode}")
         print(f"telegram: {'OK' if settings.telegram_token and settings.telegram_chat_id else 'BELUM DIISI'}")
-        print(f"pumpportal api key: {'OK' if settings.pumpportal_api_key else 'BELUM DIISI (data trade tidak tersedia)'}")
+        print(f"RPC websocket trade: {', '.join(u.split('?')[0] for u in settings.ws_url_list())}")
         print(f"database: {settings.db_path}")
         for e in errors:
             print(f"ERROR: {e}")

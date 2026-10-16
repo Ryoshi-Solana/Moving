@@ -131,6 +131,8 @@ class TelegramUI:
 
     async def cmd_status(self, update, context):
         connected = getattr(self.feed, "connected", None)
+        if connected is not None and getattr(self.agent, "feed", None) is not None:
+            connected = connected and getattr(self.agent.feed, "connected", True)
         await self._reply(update, reports.status_text(self.agent, time.time(), connected))
 
     async def cmd_positions(self, update, context):
