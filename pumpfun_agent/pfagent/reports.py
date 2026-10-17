@@ -9,6 +9,10 @@ if TYPE_CHECKING:
     from .engine import Agent
 
 
+def pumpfun_link(mint: str, label: str = "Buka di pump.fun") -> str:
+    return f'<a href="https://pump.fun/coin/{mint}">🔗 {label}</a>'
+
+
 def esc(text) -> str:
     return html.escape(str(text or ""), quote=False)
 
@@ -99,7 +103,7 @@ def positions_text(agent: "Agent", now: float) -> str:
             f"Modal {pos.sol_in:.4f} SOL · nilai ≈ {agent.position_value(pos):.4f} SOL\n"
             f"SL di {(stop / ref - 1) * 100:+.0f}% · TP1 {'✔' if pos.tp1_done else '–'} · "
             f"{(now - pos.opened_at) / 60:.1f}m\n"
-            f"<code>{pos.mint}</code>"
+            f"<code>{pos.mint}</code>\n{pumpfun_link(pos.mint)}"
         )
     return "\n".join(lines)
 

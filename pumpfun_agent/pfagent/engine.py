@@ -24,7 +24,7 @@ from .config import Params, Settings
 from .learner import Learner
 from .market import Features, MarketTracker, TokenState
 from .narrative import NarrativeTracker
-from .reports import esc
+from .reports import esc, pumpfun_link
 from .risk import RiskManager
 from .store import Position, Store
 from .strategy import PositionView, components, evaluate_exit, hard_filters, score
@@ -332,7 +332,8 @@ class Agent:
             f"Pembeli 5m: {f.unique_buyers_5m} · buy vol 2m: {f.buy_vol_2m:.1f} SOL · buy ratio {f.buy_ratio_1m:.0%}\n"
             f"Narrative: {kw or '-'} · alasan: {why}\n"
             f"SL -{self.p.stop_loss_pct:.0f}% · TP1 +{self.p.tp1_pct:.0f}%\n"
-            f"<code>{tok.mint}</code>"
+            f"<code>{tok.mint}</code>\n"
+            f"{pumpfun_link(tok.mint)}"
         )
         return True
 

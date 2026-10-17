@@ -477,3 +477,11 @@ def test_stop_loss_measured_from_market_price_not_fee_inclusive(tmp_path):
     assert pos.mint not in agent.positions
     closed = agent.store.closed_positions("paper")[0]
     assert "STOP LOSS" in closed.exit_reason and -25 < closed.pnl_pct < -12
+
+
+def test_buy_alert_has_pumpfun_link(tmp_path):
+    agent, sent = _agent(tmp_path)
+    run(_play(agent, pump_then("dump")))
+    buy = next(s for s in sent if "BELI" in s)
+    mint = agent.store.closed_positions("paper")[0].mint
+    assert f'<a href="https://pump.fun/coin/{mint}">' in buy
