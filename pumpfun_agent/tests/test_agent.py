@@ -434,3 +434,46 @@ def test_startup_actions_apply_once(tmp_path, monkeypatch):
     agent.p.min_score = 80  # diubah lewat /set setelahnya
     run(apply_startup_actions(agent, agent.store))  # restart dengan env yang sama
     assert agent.p.min_score == 80 and agent.season_no == 2
+
+
+def test_learner_grid_tracks_every_sl_tp_combo(tmp_path):
+    from pfagent.learner import GRID_MIN_SAMPLES
+    agent, _ = _agent(tmp_path)
+    L, p = agent.learner, agent.p
+    p.min_score = 75
+    # pola: turun -10% dulu (SL 8 kena), lalu naik ke +60%
+    for i in range(GRID_MIN_SAMPLES):
+        sid = L.record(f"m{i}", 0.0, 80, {}, {}, 1.0, False)
+        for price in (0.95, 0.90, 1.2, 1.6):
+            L.on_price(f"m{i}", price, 10.0)
+        L.tick(10_000.0)
+    g = L.grid_analysis()
+    assert g["samples"] == GRID_MIN_SAMPLES
+    cells = {c["key"]: c["net_pct"] for c in g["cells"]}
+    cost = L.round_trip_cost_pct()
+    assert cells["8/50"] == pytest.approx(-8 - cost)     # SL ketat tertendang duluan
+    assert cells["12/50"] == pytest.approx(50 - cost)    # SL lebih longgar bertahan sampai TP
+    assert cells["12/100"] == pytest.approx(60 - cost)   # tidak sampai TP → harga terakhir
+    p.stop_loss_pct, p.tp1_pct = 8.0, 40.0
+    changes = L.tune()
+    assert any("SL" in c for c in changes)
+    assert p.stop_loss_pct > 8.0 and 8.0 <= p.stop_loss_pct <= 25.0
+
+
+def test_stop_loss_measured_from_market_price_not_fee_inclusive(tmp_path):
+    agent, sent = _agent(tmp_path, stale_minutes=10, tp1_pct=1000, trailing_activate_pct=1000)
+    run(_play(agent, pump_then("moon")[:150]))
+    pos = next(iter(agent.positions.values()))
+    assert pos.entry_spot > 0 and pos.entry_price > pos.entry_spot  # biaya efektif > harga pasar
+    tok = agent.market.tokens[pos.mint]
+    pos.stop_price, pos.peak_price = 0.0, pos.entry_spot  # anggap belum sempat naik
+    # harga 9% di bawah harga pasar saat masuk: SL lama (dari biaya efektif) sudah kena,
+    # SL baru (dari harga pasar, -12%) belum
+    tok.v_sol = pos.entry_spot * 0.91 * tok.v_tokens
+    run(agent._manage_position(pos.mint, pos.opened_at + 30))
+    assert pos.mint in agent.positions
+    tok.v_sol = pos.entry_spot * 0.87 * tok.v_tokens
+    run(agent._manage_position(pos.mint, pos.opened_at + 31))
+    assert pos.mint not in agent.positions
+    closed = agent.store.closed_positions("paper")[0]
+    assert "STOP LOSS" in closed.exit_reason and -25 < closed.pnl_pct < -12

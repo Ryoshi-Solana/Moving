@@ -90,13 +90,14 @@ def positions_text(agent: "Agent", now: float) -> str:
     for pos in agent.positions.values():
         tok = agent.market.tokens.get(pos.mint)
         price = tok.spot_price() if tok else pos.entry_price
-        gain = (price / pos.entry_price - 1) * 100 if pos.entry_price else 0
-        peak = (pos.peak_price / pos.entry_price - 1) * 100 if pos.entry_price else 0
-        stop = pos.stop_price or pos.entry_price * (1 - agent.p.stop_loss_pct / 100)
+        ref = pos.entry_spot or pos.entry_price
+        gain = (price / ref - 1) * 100 if ref else 0
+        peak = (pos.peak_price / ref - 1) * 100 if ref else 0
+        stop = pos.stop_price or ref * (1 - agent.p.stop_loss_pct / 100)
         lines.append(
             f"\n<b>{esc(pos.symbol)}</b> {gain:+.1f}% (puncak {peak:+.0f}%)\n"
             f"Modal {pos.sol_in:.4f} SOL · nilai ≈ {agent.position_value(pos):.4f} SOL\n"
-            f"SL di {(stop / pos.entry_price - 1) * 100:+.0f}% · TP1 {'✔' if pos.tp1_done else '–'} · "
+            f"SL di {(stop / ref - 1) * 100:+.0f}% · TP1 {'✔' if pos.tp1_done else '–'} · "
             f"{(now - pos.opened_at) / 60:.1f}m\n"
             f"<code>{pos.mint}</code>"
         )
@@ -171,6 +172,20 @@ def learn_text(agent: "Agent") -> str:
         lines.append(f"{k}: {c['mean_win']:.2f} vs {c['mean_other']:.2f} → {a['weights'][k]:.1f}")
     if a["samples"] < agent.p.learn_min_samples:
         lines.append(f"\nAuto-tune aktif setelah {agent.p.learn_min_samples} sampel.")
+
+    g = agent.learner.grid_analysis()
+    lines += ["", f"<b>SL/TP terbaik</b> (skor ≥{g['min_score']:.0f}, n={g['samples']}, bersih setelah biaya)"]
+    if g["samples"] == 0:
+        lines.append("Belum ada data — butuh ±15 menit per sinyal.")
+    else:
+        for c in g["cells"][:5]:
+            lines.append(f"SL {c['sl']:g}% / TP {c['tp']:g}%: {c['net_pct']:+.1f}%")
+        if g["current"]:
+            lines.append(f"Setelan sekarang (≈SL {g['current']['sl']:g}/TP {g['current']['tp']:g}): "
+                         f"{g['current']['net_pct']:+.1f}%")
+        from .learner import GRID_MIN_SAMPLES
+        if g["samples"] < GRID_MIN_SAMPLES:
+            lines.append(f"Auto-tune SL/TP aktif setelah {GRID_MIN_SAMPLES} sinyal.")
     return "\n".join(lines)
 
 

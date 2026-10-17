@@ -109,7 +109,6 @@ async def run(settings: Settings) -> None:
     agent.feed = trades  # engine mendaftarkan mint yang dipantau ke feed on-chain
 
     await agent.start()
-    await apply_startup_actions(agent, store)
     try:
         await tg.start(agent, feed)
     except Exception as exc:
@@ -122,6 +121,8 @@ async def run(settings: Settings) -> None:
         f"Equity {agent.equity():.4f} SOL · posisi terbuka {len(agent.positions)}\n"
         "Ketik /help untuk daftar perintah."
     )
+    # setelah Telegram tersambung, supaya notifikasinya benar-benar terkirim
+    await apply_startup_actions(agent, store)
 
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()

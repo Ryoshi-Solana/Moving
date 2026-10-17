@@ -168,7 +168,9 @@ class Agent:
         eq = self.equity()
         self.risk.roll_day(self.local_dt(now).strftime("%Y-%m-%d"), eq)
         self.risk.on_equity(eq)
-        season = self.season_no + 1
+        # musim yang belum punya trade tutup diulang saja, bukan menambah nomor
+        has_trades = bool(self.store.closed_positions(self.mode, since=self.season_start, limit=1)) or closed > 0
+        season = self.season_no + 1 if (has_trades or self.season_start == 0) else self.season_no
         # sedikit setelah `now` supaya posisi yang ditutup saat reset masuk musim lama
         self.store.put(f"season_start_{self.mode}", now + 0.001)
         self.store.put(f"season_no_{self.mode}", season)
@@ -294,6 +296,7 @@ class Agent:
             self.rejections["ukuran posisi terlalu kecil"] += 1
             return False
         self._busy.add(tok.mint)
+        spot = tok.spot_price()  # harga pasar saat keputusan beli = acuan SL/TP
         try:
             fill = await self.broker.buy(tok, size)
         except OrderError as exc:
@@ -309,8 +312,8 @@ class Agent:
         pos = Position(
             mint=tok.mint, symbol=tok.symbol, name=tok.name, mode=self.mode, opened_at=now,
             entry_price=fill.price, tokens_bought=fill.tokens, tokens_held=fill.tokens,
-            sol_in=fill.sol, peak_price=fill.price, score=sc, narrative=kw,
-            features={**f.as_dict(), "components": comps},
+            sol_in=fill.sol, peak_price=spot or fill.price, score=sc, narrative=kw,
+            features={**f.as_dict(), "components": comps}, entry_spot=spot or fill.price,
         )
         self.store.save_position(pos)
         self.store.add_fill(pos.id, now, "buy", fill.sol, fill.tokens, fill.price, fill.fee_sol, fill.signature, "entry")
@@ -353,7 +356,10 @@ class Agent:
             return
         pos.peak_price = max(pos.peak_price, price)
         f = self.market.features(mint, now)
-        view = PositionView(pos.entry_price, pos.opened_at, pos.peak_price, pos.tp1_done, pos.tp2_done, pos.stop_price)
+        # SL/TP diukur dari harga pasar saat masuk, bukan dari biaya efektif (yang sudah termasuk fee):
+        # kalau tidak, SL -12% sebenarnya cuma ±-8.7% dari harga pasar dan habis oleh noise biasa.
+        ref = pos.entry_spot or pos.entry_price
+        view = PositionView(ref, pos.opened_at, pos.peak_price, pos.tp1_done, pos.tp2_done, pos.stop_price)
         decision = evaluate_exit(view, price, f, now, self.p)
         if decision is None:
             return
@@ -418,7 +424,9 @@ class Agent:
             "mode": self.mode, "symbol": pos.symbol, "mint": pos.mint,
             "opened_at": round(pos.opened_at), "held_min": round((now - pos.opened_at) / 60, 2),
             "exit": pos.exit_reason, "pnl_sol": round(pos.pnl_sol, 5), "pnl_pct": round(pos.pnl_pct, 2),
-            "peak_pct": round((pos.peak_price / pos.entry_price - 1) * 100, 1) if pos.entry_price else None,
+            "peak_pct": round((pos.peak_price / (pos.entry_spot or pos.entry_price) - 1) * 100, 1)
+            if pos.entry_price else None,
+            "sl": self.p.stop_loss_pct, "tp1_pct": self.p.tp1_pct,
             "score": round(pos.score, 1), "narrative": pos.narrative, "tp1": pos.tp1_done,
             "sol_in": round(pos.sol_in, 4),
             "f": {k: (round(v, 3) if isinstance(v, float) else v) for k, v in feat.items() if k != "components"},

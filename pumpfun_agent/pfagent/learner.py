@@ -11,6 +11,11 @@ Dari situ learner bisa:
   - menunjukkan win rate per rentang skor (apakah skor tinggi memang lebih bagus?)
   - menyesuaikan bobot komponen (komponen yang membedakan menang vs kalah dinaikkan)
   - menyesuaikan min_score ke ambang dengan ekspektasi terbaik
+Selain itu, setiap sinyal diuji sekaligus dengan banyak kombinasi SL/TP (grid):
+harga diikuti sampai horizon, dan untuk tiap kombinasi dicatat mana yang kena
+duluan. Dari situ learner tahu SL/TP mana yang paling untung SETELAH biaya
+untuk sinyal-sinyal yang memang akan dibeli (skor ≥ min_score).
+
 Semua penyesuaian dibatasi supaya agent tidak "belajar" hal ekstrem dari sampel kecil.
 """
 
@@ -28,6 +33,15 @@ SCORE_THRESHOLDS = [50, 55, 60, 65, 70, 75, 80, 85]
 MIN_SCORE_FLOOR, MIN_SCORE_CEIL = 65.0, 85.0
 MIN_THRESHOLD_SAMPLES = 20
 
+GRID_SL = (8, 12, 16, 20, 25)
+GRID_TP = (20, 30, 50, 75, 100)
+GRID_MIN_SAMPLES = 60
+SL_BOUNDS, TP_BOUNDS = (8.0, 25.0), (20.0, 100.0)
+
+
+def grid_key(sl: float, tp: float) -> str:
+    return f"{sl:g}/{tp:g}"
+
 
 @dataclass
 class OpenSignal:
@@ -37,6 +51,13 @@ class OpenSignal:
     entry: float
     max_gain: float = 0.0
     min_gain: float = 0.0
+    last_gain: float = 0.0
+    main_done: bool = False
+    grid: dict | None = None  # "sl/tp" -> hasil kotor % (None = belum kena)
+
+    def __post_init__(self):
+        if self.grid is None:
+            self.grid = {grid_key(sl, tp): None for sl in GRID_SL for tp in GRID_TP}
 
 
 class Learner:
@@ -83,22 +104,68 @@ class Learner:
             gain = (price / sig.entry - 1) * 100
             sig.max_gain = max(sig.max_gain, gain)
             sig.min_gain = min(sig.min_gain, gain)
-            if sig.max_gain >= self.p.learn_win_pct:
-                self._resolve(sig, "win", now)
-            elif sig.min_gain <= -self.p.stop_loss_pct:
-                self._resolve(sig, "loss", now)
+            sig.last_gain = gain
+            for sl in GRID_SL:
+                for tp in GRID_TP:
+                    k = grid_key(sl, tp)
+                    if sig.grid[k] is None:
+                        if gain <= -sl:
+                            sig.grid[k] = -float(sl)
+                        elif gain >= tp:
+                            sig.grid[k] = float(tp)
+            if not sig.main_done:
+                if sig.max_gain >= self.p.learn_win_pct:
+                    self._resolve_main(sig, "win", now)
+                elif sig.min_gain <= -self.p.stop_loss_pct:
+                    self._resolve_main(sig, "loss", now)
+            if all(v is not None for v in sig.grid.values()):
+                self._finish(sig, now)
 
     def tick(self, now: float) -> None:
         horizon = self.p.learn_horizon_minutes * 60
         for sig in list(self.open.values()):
             if now - sig.ts >= horizon:
-                self._resolve(sig, "flat", now)
+                self._finish(sig, now)
         cutoff = now - 3600
         self.last_signal_at = {m: t for m, t in self.last_signal_at.items() if t > cutoff}
 
-    def _resolve(self, sig: OpenSignal, outcome: str, now: float) -> None:
+    def _resolve_main(self, sig: OpenSignal, outcome: str, now: float) -> None:
+        sig.main_done = True
         self.store.update_signal(sig.id, sig.max_gain, sig.min_gain, outcome, now)
+
+    def _finish(self, sig: OpenSignal, now: float) -> None:
+        """Horizon habis (atau semua kombinasi grid sudah kena): simpan semuanya."""
+        if not sig.main_done:
+            self._resolve_main(sig, "flat", now)
+        for sl in GRID_SL:
+            for tp in GRID_TP:
+                k = grid_key(sl, tp)
+                if sig.grid[k] is None:  # tidak kena SL maupun TP → keluar di harga terakhir
+                    sig.grid[k] = round(max(-sl, min(tp, sig.last_gain)), 2)
+        self.store.update_signal_grid(sig.id, sig.grid)
         self.open.pop(sig.id, None)
+
+    def grid_analysis(self, min_score: float | None = None) -> dict:
+        """Rata-rata hasil BERSIH per kombinasi SL/TP untuk sinyal dengan skor ≥ min_score."""
+        min_score = self.p.min_score if min_score is None else min_score
+        rows = self.store.grid_signals(min_score)
+        cost = self.round_trip_cost_pct()
+        sums: dict[str, float] = {}
+        n = 0
+        for r in rows:
+            try:
+                g = json.loads(r["grid"])
+            except (TypeError, ValueError):
+                continue
+            n += 1
+            for k, v in g.items():
+                sums[k] = sums.get(k, 0.0) + float(v) - cost
+        cells = sorted(({"key": k, "sl": float(k.split("/")[0]), "tp": float(k.split("/")[1]),
+                         "net_pct": s / n} for k, s in sums.items()), key=lambda c: c["net_pct"], reverse=True)
+        current = grid_key(min(GRID_SL, key=lambda x: abs(x - self.p.stop_loss_pct)),
+                           min(GRID_TP, key=lambda x: abs(x - self.p.tp1_pct)))
+        return {"samples": n, "min_score": min_score, "cells": cells,
+                "current": next((c for c in cells if c["key"] == current), None)}
 
     # ---------- analisis ----------
 
@@ -188,4 +255,20 @@ class Learner:
                 self.p.min_score = round(old + step, 1)
                 changes.append(f"min_score: {old:.0f} → {self.p.min_score:.0f} "
                                f"(ekspektasi bersih {best_e:+.1f}% di skor ≥{best_t})")
+
+        # 3. SL/TP: geser pelan ke kombinasi grid terbaik untuk sinyal yang akan dibeli
+        grid = self.grid_analysis()
+        if grid["samples"] >= GRID_MIN_SAMPLES and grid["cells"] and grid["cells"][0]["net_pct"] > 0:
+            best = grid["cells"][0]
+            new_sl = max(SL_BOUNDS[0], min(SL_BOUNDS[1],
+                         self.p.stop_loss_pct + max(-4.0, min(4.0, best["sl"] - self.p.stop_loss_pct))))
+            new_tp = max(TP_BOUNDS[0], min(TP_BOUNDS[1],
+                         self.p.tp1_pct + max(-20.0, min(20.0, best["tp"] - self.p.tp1_pct))))
+            if abs(new_sl - self.p.stop_loss_pct) >= 1 or abs(new_tp - self.p.tp1_pct) >= 1:
+                changes.append(f"SL {self.p.stop_loss_pct:.0f}% → {new_sl:.0f}%, TP1 {self.p.tp1_pct:.0f}% → "
+                               f"{new_tp:.0f}% (terbaik: SL {best['sl']:g}/TP {best['tp']:g} = "
+                               f"{best['net_pct']:+.1f}% bersih, n={grid['samples']})")
+                self.p.stop_loss_pct = round(new_sl, 1)
+                self.p.tp1_pct = round(new_tp, 1)
+                self.p.tp2_pct = max(self.p.tp2_pct, round(self.p.tp1_pct * 2, 1))
         return changes

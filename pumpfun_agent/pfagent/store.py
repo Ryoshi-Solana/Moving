@@ -73,6 +73,7 @@ class Position:
     exit_reason: str = ""
     pnl_sol: float | None = None
     pnl_pct: float | None = None
+    entry_spot: float = 0.0   # harga pasar saat masuk (acuan SL/TP); entry_price = biaya efektif termasuk fee
     id: int | None = None
 
     def unrealized_value(self, price: float) -> float:
@@ -87,7 +88,20 @@ class Store:
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.executescript(SCHEMA)
+        self._migrate()
         self.conn.commit()
+
+    def _migrate(self) -> None:
+        """Tambah kolom baru ke database lama tanpa menghapus data."""
+        wanted = {
+            "positions": {"entry_spot": "REAL NOT NULL DEFAULT 0"},
+            "signals": {"grid": "TEXT"},
+        }
+        for table, cols in wanted.items():
+            have = {r["name"] for r in self.conn.execute(f"PRAGMA table_info({table})")}
+            for col, ddl in cols.items():
+                if col not in have:
+                    self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}")
 
     # ---------- kv ----------
     def get(self, key: str, default=None):
@@ -174,6 +188,16 @@ class Store:
             (max_gain, min_gain, outcome, resolved_at, sid),
         )
         self.conn.commit()
+
+    def update_signal_grid(self, sid: int, grid: dict) -> None:
+        self.conn.execute("UPDATE signals SET grid=? WHERE id=?", (json.dumps(grid), sid))
+        self.conn.commit()
+
+    def grid_signals(self, min_score: float, limit: int = 3000) -> list[sqlite3.Row]:
+        return self.conn.execute(
+            "SELECT score, grid FROM signals WHERE grid IS NOT NULL AND score>=? ORDER BY ts DESC LIMIT ?",
+            (min_score, limit),
+        ).fetchall()
 
     def mark_signal_bought(self, sid: int) -> None:
         self.conn.execute("UPDATE signals SET bought=1 WHERE id=?", (sid,))
