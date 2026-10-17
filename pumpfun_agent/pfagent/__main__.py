@@ -40,6 +40,37 @@ def load_params(store: Store) -> Params:
     return params
 
 
+async def apply_startup_actions(agent: Agent, store: Store) -> None:
+    """
+    Aksi sekali jalan yang dipicu dari environment (berguna di Railway tanpa akses Telegram):
+      PUMPY_PARAMS="k=v,k=v"   → set parameter, sekali per nilai unik
+      PUMPY_PAPER_RESET=label  → reset paper trading, sekali per label unik
+    Urutan: parameter dulu, lalu reset (supaya pesan reset menampilkan parameter baru).
+    """
+    raw = os.environ.get("PUMPY_PARAMS", "").strip()
+    if raw and store.get("applied_pumpy_params") != raw:
+        applied = []
+        for part in raw.split(","):
+            if "=" not in part:
+                continue
+            key, value = (x.strip() for x in part.split("=", 1))
+            try:
+                agent.p.set(key, value)
+                applied.append(f"{key}={value}")
+            except ValueError as exc:
+                log.error("PUMPY_PARAMS %s ditolak: %s", key, exc)
+        store.put("applied_pumpy_params", raw)
+        agent.save_state()
+        if applied:
+            log.info("PUMPY_PARAMS diterapkan: %s", applied)
+            await agent.notify("⚙️ <b>PUMPY · parameter diubah</b>\n" + "\n".join(applied))
+
+    label = os.environ.get("PUMPY_PAPER_RESET", "").strip()
+    if label and agent.mode == "paper" and store.get("applied_paper_reset") != label:
+        store.put("applied_paper_reset", label)
+        await agent.reset_paper(time.time(), f"(label {label})")
+
+
 async def fetch_metadata_factory():
     import httpx
     client = httpx.AsyncClient(timeout=4, follow_redirects=True)
@@ -78,6 +109,7 @@ async def run(settings: Settings) -> None:
     agent.feed = trades  # engine mendaftarkan mint yang dipantau ke feed on-chain
 
     await agent.start()
+    await apply_startup_actions(agent, store)
     try:
         await tg.start(agent, feed)
     except Exception as exc:

@@ -31,7 +31,8 @@ HELP = """<b>PUMPY · agent trading pump.fun</b>
 /pause – stop buka posisi baru (posisi lama tetap dijaga SL/TP)
 /resume – lanjut (setelah kill switch: /resume yakin)
 /close MINT – jual satu posisi sekarang · /close all – jual semua
-/report – laporan harian sekarang"""
+/report – laporan harian sekarang
+/reset yakin – (paper) mulai musim baru: saldo kembali ke modal awal"""
 
 
 class TelegramUI:
@@ -89,6 +90,7 @@ class TelegramUI:
             ("resume",): self.cmd_resume,
             ("close",): self.cmd_close,
             ("report",): self.cmd_report,
+            ("reset",): self.cmd_reset,
         }
         for names, fn in handlers.items():
             self.app.add_handler(CommandHandler(list(names), fn, filters=only_me))
@@ -158,6 +160,18 @@ class TelegramUI:
 
     async def cmd_report(self, update, context):
         await self._reply(update, reports.daily_report(self.agent, time.time()))
+
+    async def cmd_reset(self, update, context):
+        agent = self.agent
+        if agent.mode != "paper":
+            await self._reply(update, "Reset hanya untuk paper trading.")
+            return
+        if (context.args or [""])[0].lower() != "yakin":
+            await self._reply(update, f"Ini akan menutup semua posisi paper dan mengembalikan saldo ke "
+                                      f"{agent.s.paper_start_balance_sol:g} SOL (musim baru). Riwayat & data "
+                                      "learner tetap disimpan.\nKirim: /reset yakin")
+            return
+        await agent.reset_paper(time.time(), "(via Telegram)")
 
     async def cmd_set(self, update, context):
         args = context.args or []

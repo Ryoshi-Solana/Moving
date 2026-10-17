@@ -129,6 +129,11 @@ class RiskManager:
         Biaya pulang-pergi ikut dihitung sebagai bagian dari risiko.
         """
         p = self.p
+        if p.fixed_position_sol > 0:
+            # ukuran tetap demi perbandingan yang adil: kalau saldo kurang, lewati saja
+            if cash - p.reserve_sol - p.priority_fee_sol < p.fixed_position_sol:
+                return 0.0
+            return round(p.fixed_position_sol, 4)
         round_trip_cost = 2 * (p.pump_fee_pct + p.platform_fee_pct + p.paper_latency_slippage_pct) / 100
         loss_per_sol = p.stop_loss_pct / 100 + round_trip_cost
         size = equity * p.risk_per_trade_pct / 100 / loss_per_sol

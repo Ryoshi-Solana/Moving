@@ -66,7 +66,8 @@ def status_text(agent: "Agent", now: float, feed_connected: bool | None = None) 
     perf = f" ({(eq / start - 1) * 100:+.1f}% dari modal awal)" if start else ""
     uptime = (now - agent.started_at) / 3600 if agent.started_at else 0
     lines = [
-        f"<b>PUMPY · status</b> · mode <b>{agent.mode.upper()}</b>",
+        f"<b>PUMPY · status</b> · mode <b>{agent.mode.upper()}</b>"
+        + (f" · musim {agent.season_no}" if agent.mode == "paper" else ""),
         f"Kondisi: {state}",
         f"Equity: <b>{eq:.4f} SOL</b>{perf}",
         f"Cash: {agent.cash:.4f} SOL · posisi terbuka: {len(agent.positions)}/{agent.p.max_open_positions}",
@@ -114,13 +115,15 @@ def trades_text(agent: "Agent", limit: int = 10) -> str:
 
 
 def pnl_text(agent: "Agent", now: float) -> str:
-    day_start = now - 86400
-    week_start = now - 7 * 86400
-    return (
-        "<b>24 jam terakhir</b>\n" + _fmt_summary(pnl_summary(agent, day_start)) +
-        "\n\n<b>7 hari terakhir</b>\n" + _fmt_summary(pnl_summary(agent, week_start)) +
-        "\n\n<b>Sepanjang waktu</b>\n" + _fmt_summary(pnl_summary(agent, 0))
+    season_start = agent.season_start
+    day_start = max(now - 86400, season_start)
+    text = (
+        f"<b>Musim {agent.season_no} · 24 jam terakhir</b>\n" + _fmt_summary(pnl_summary(agent, day_start)) +
+        f"\n\n<b>Musim {agent.season_no} · sejak reset</b>\n" + _fmt_summary(pnl_summary(agent, season_start))
     )
+    if season_start > 0:
+        text += "\n\n<b>Semua musim</b>\n" + _fmt_summary(pnl_summary(agent, 0))
+    return text
 
 
 def narratives_text(agent: "Agent", now: float) -> str:

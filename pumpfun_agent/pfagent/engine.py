@@ -144,6 +144,46 @@ class Agent:
         except Exception as exc:
             log.warning("gagal baca saldo: %s", exc)
 
+    # ------------------------------------------------------------ musim (reset paper)
+
+    @property
+    def season_start(self) -> float:
+        return float(self.store.get(f"season_start_{self.mode}", 0.0))
+
+    @property
+    def season_no(self) -> int:
+        return int(self.store.get(f"season_no_{self.mode}", 1))
+
+    async def reset_paper(self, now: float, reason: str = "") -> int:
+        """Mulai musim baru: tutup posisi, saldo paper kembali ke modal awal, rem darurat di-reset.
+        Riwayat trade & data learner tetap disimpan."""
+        if self.mode != "paper":
+            raise RuntimeError("reset hanya untuk paper trading")
+        closed = await self.close_all("RESET MUSIM", now)
+        old_equity = self.equity()
+        self.broker.cash = float(self.s.paper_start_balance_sol)
+        await self.refresh_cash()
+        from .risk import RiskState
+        self.risk.state = RiskState()
+        eq = self.equity()
+        self.risk.roll_day(self.local_dt(now).strftime("%Y-%m-%d"), eq)
+        self.risk.on_equity(eq)
+        season = self.season_no + 1
+        # sedikit setelah `now` supaya posisi yang ditutup saat reset masuk musim lama
+        self.store.put(f"season_start_{self.mode}", now + 0.001)
+        self.store.put(f"season_no_{self.mode}", season)
+        self.save_state()
+        log.info("PUMPY reset paper → musim %d (equity lama %.4f, %d posisi ditutup) %s",
+                 season, old_equity, closed, reason)
+        await self.notify(
+            f"🔄 <b>PUMPY · reset paper trading → musim {season}</b>\n"
+            f"Equity musim lalu: {old_equity:.4f} SOL · posisi ditutup: {closed}\n"
+            f"Modal baru: <b>{eq:.4f} SOL</b>"
+            + (f" · entry tetap {self.p.fixed_position_sol:g} SOL" if self.p.fixed_position_sol > 0 else "")
+            + f"\nmin_score {self.p.min_score:.0f} · data learner tetap dipakai"
+        )
+        return season
+
     async def start(self, now: float | None = None) -> None:
         now = now or time.time()
         self.started_at = now

@@ -104,6 +104,7 @@ class Params:
     max_position_pct: float = 10.0       # ukuran posisi maks sebagai % equity
     max_position_sol: float = 0.1
     min_position_sol: float = 0.01
+    fixed_position_sol: float = 0.0      # >0 = setiap entry pakai ukuran tetap ini (abaikan sizing berbasis risiko)
     max_open_positions: int = 3
     reserve_sol: float = 0.02            # selalu disisakan untuk fee transaksi
 

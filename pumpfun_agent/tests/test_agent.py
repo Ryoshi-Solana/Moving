@@ -396,3 +396,41 @@ def test_learner_counts_costs_and_never_loosens_below_default(tmp_path):
     for _ in range(4):
         agent.learner.tune()
     assert agent.p.min_score >= 75
+
+
+def test_fixed_position_size():
+    p = Params(fixed_position_sol=0.1)
+    r = RiskManager(p)
+    assert r.position_size(equity=5.0, cash=5.0) == pytest.approx(0.1)
+    assert r.position_size(equity=0.05, cash=0.05) == 0.0  # saldo tidak cukup
+
+
+def test_paper_reset_starts_new_season(tmp_path):
+    agent, sent = _agent(tmp_path, stale_minutes=10, tp1_pct=1000, trailing_activate_pct=1000)
+    end = run(_play(agent, pump_then("moon")[:150]))
+    assert agent.positions
+    agent.risk.state.halted = True
+    agent.p.fixed_position_sol = 0.1
+    season = run(agent.reset_paper(end + 10))
+    assert season == 2 and agent.season_no == 2
+    assert not agent.positions
+    assert agent.cash == pytest.approx(1.0) and agent.equity() == pytest.approx(1.0)
+    assert not agent.risk.state.halted
+    assert agent.store.closed_positions("paper")  # riwayat lama tetap ada
+    text = pnl_text(agent, end + 20)
+    assert "Musim 2" in text and "Belum ada trade" in text and "Semua musim" in text
+    assert any("musim 2" in s for s in sent)
+
+
+def test_startup_actions_apply_once(tmp_path, monkeypatch):
+    from pfagent.__main__ import apply_startup_actions
+    agent, sent = _agent(tmp_path)
+    run(agent.start(1000.0))
+    monkeypatch.setenv("PUMPY_PARAMS", "fixed_position_sol=0.1,min_score=75")
+    monkeypatch.setenv("PUMPY_PAPER_RESET", "musim2")
+    run(apply_startup_actions(agent, agent.store))
+    assert agent.p.fixed_position_sol == 0.1 and agent.p.min_score == 75
+    assert agent.season_no == 2
+    agent.p.min_score = 80  # diubah lewat /set setelahnya
+    run(apply_startup_actions(agent, agent.store))  # restart dengan env yang sama
+    assert agent.p.min_score == 80 and agent.season_no == 2
