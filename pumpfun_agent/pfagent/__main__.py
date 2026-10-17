@@ -86,7 +86,7 @@ async def run(settings: Settings) -> None:
         tg.enabled = False
         tg.app = None
     await tg.send(
-        f"🤖 <b>Agent mulai</b> · mode <b>{settings.mode.upper()}</b>\n"
+        f"🤖 <b>PUMPY mulai</b> · mode <b>{settings.mode.upper()}</b>\n"
         f"Equity {agent.equity():.4f} SOL · posisi terbuka {len(agent.positions)}\n"
         "Ketik /help untuk daftar perintah."
     )
@@ -126,7 +126,7 @@ async def run(settings: Settings) -> None:
             if now - last_stats >= 300:
                 last_stats = now
                 c = agent.counters
-                log.info("stats: token_baru=%d trade=%d kandidat=%d entry=%d exit=%d dipantau=%d "
+                log.info("PUMPY stats: token_baru=%d trade=%d kandidat=%d entry=%d exit=%d dipantau=%d "
                          "posisi=%d equity=%.4f pumpportal=%s %s onchain=%s %s reconnect=%d/%d tolak_teratas=%s",
                          c["tokens_seen"], c["trades_seen"], c["candidates"], c["entries"], c["exits"],
                          len(agent.market.tokens), len(agent.positions), agent.equity(),
@@ -146,7 +146,7 @@ async def run(settings: Settings) -> None:
         t.cancel()
     await asyncio.gather(*tasks, return_exceptions=True)
     agent.save_state()
-    await tg.send("⏹ Agent dimatikan. Posisi terbuka tetap ada dan akan dijaga lagi saat agent hidup.")
+    await tg.send("⏹ PUMPY dimatikan. Posisi terbuka tetap ada dan akan dijaga lagi saat agent hidup.")
     await tg.stop()
     if http_client:
         await http_client.aclose()

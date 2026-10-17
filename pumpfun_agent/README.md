@@ -1,4 +1,7 @@
-# Agent trading pump.fun
+# PUMPY — agent trading pump.fun
+
+> Project ini bernama **PUMPY**. Commit, pesan Telegram, dan log diberi label
+> PUMPY supaya tidak tertukar dengan project lain di akun GitHub/Railway yang sama.
 
 Agent ini memantau semua token baru di pump.fun secara realtime, belajar
 perilaku market & narrative, membeli token yang sedang punya momentum, dan

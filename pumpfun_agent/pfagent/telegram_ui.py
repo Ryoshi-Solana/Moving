@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-HELP = """<b>Perintah agent</b>
+HELP = """<b>PUMPY · agent trading pump.fun</b>
 /status – kondisi agent, equity, mode
 /posisi – posisi terbuka
 /trades – 10 trade terakhir

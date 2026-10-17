@@ -12,6 +12,7 @@ Karena itu engine yang sama bisa dipakai untuk live, paper, replay, dan test.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 from collections import Counter
@@ -371,6 +372,18 @@ class Agent:
         self.positions.pop(pos.mint, None)
         self.counters["exits"] += 1
         risk_msg = self.risk.on_position_closed(pos.mint, pos.pnl_sol, now)
+        # jurnal satu baris per trade → bisa dianalisis dari log server
+        feat = pos.features or {}
+        log.info("PUMPY_TRADE %s", json.dumps({
+            "mode": self.mode, "symbol": pos.symbol, "mint": pos.mint,
+            "opened_at": round(pos.opened_at), "held_min": round((now - pos.opened_at) / 60, 2),
+            "exit": pos.exit_reason, "pnl_sol": round(pos.pnl_sol, 5), "pnl_pct": round(pos.pnl_pct, 2),
+            "peak_pct": round((pos.peak_price / pos.entry_price - 1) * 100, 1) if pos.entry_price else None,
+            "score": round(pos.score, 1), "narrative": pos.narrative, "tp1": pos.tp1_done,
+            "sol_in": round(pos.sol_in, 4),
+            "f": {k: (round(v, 3) if isinstance(v, float) else v) for k, v in feat.items() if k != "components"},
+            "c": {k: round(v, 3) for k, v in (feat.get("components") or {}).items()},
+        }, ensure_ascii=False))
         icon = "✅" if pos.pnl_sol >= 0 else "🔴"
         held = (now - pos.opened_at) / 60
         await self.notify(

@@ -66,7 +66,7 @@ def status_text(agent: "Agent", now: float, feed_connected: bool | None = None) 
     perf = f" ({(eq / start - 1) * 100:+.1f}% dari modal awal)" if start else ""
     uptime = (now - agent.started_at) / 3600 if agent.started_at else 0
     lines = [
-        f"<b>Status agent</b> · mode <b>{agent.mode.upper()}</b>",
+        f"<b>PUMPY · status</b> · mode <b>{agent.mode.upper()}</b>",
         f"Kondisi: {state}",
         f"Equity: <b>{eq:.4f} SOL</b>{perf}",
         f"Cash: {agent.cash:.4f} SOL · posisi terbuka: {len(agent.positions)}/{agent.p.max_open_positions}",
@@ -156,7 +156,8 @@ def learn_text(agent: "Agent") -> str:
         f"<b>Hasil belajar</b> dari {a['samples']} sinyal",
         f"(menang = sentuh +{agent.p.learn_win_pct:.0f}% sebelum -{agent.p.stop_loss_pct:.0f}%, "
         f"horizon {agent.p.learn_horizon_minutes:.0f}m)",
-        f"Win rate {a['win_rate']:.0%} · kalah {a['loss_rate']:.0%} · ekspektasi {a['expectancy_pct']:+.1f}%/sinyal",
+        f"Win rate {a['win_rate']:.0%} · kalah {a['loss_rate']:.0%} · ekspektasi bersih {a['expectancy_pct']:+.1f}%/sinyal",
+        f"(sudah dipotong biaya pulang-pergi ±{agent.learner.round_trip_cost_pct():.1f}%)",
         "",
         "<b>Per rentang skor</b>",
     ]
@@ -185,7 +186,7 @@ def daily_report(agent: "Agent", now: float) -> str:
     learn_line = (f"{a['samples']} sinyal · ekspektasi {a.get('expectancy_pct', 0):+.1f}%/sinyal"
                   if a["samples"] else "belum ada data")
     return (
-        f"📊 <b>Laporan harian</b> ({agent.mode})\n"
+        f"📊 <b>PUMPY · laporan harian</b> ({agent.mode})\n"
         f"Equity: <b>{agent.equity():.4f} SOL</b> · posisi terbuka {len(agent.positions)}\n\n"
         f"{_fmt_summary(s)}\n\n"
         f"Narrative panas: {narr_line}\n"

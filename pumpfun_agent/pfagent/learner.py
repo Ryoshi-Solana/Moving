@@ -24,8 +24,9 @@ from .store import Store
 from .strategy import DEFAULT_WEIGHTS
 
 SCORE_THRESHOLDS = [50, 55, 60, 65, 70, 75, 80, 85]
-MIN_SCORE_FLOOR, MIN_SCORE_CEIL = 55.0, 85.0
-FLAT_COST_PCT = 3.0  # perkiraan rugi kecil (fee + slippage) untuk sinyal yang datar
+# Learner hanya boleh membuat agent LEBIH selektif dari default, tidak lebih longgar.
+MIN_SCORE_FLOOR, MIN_SCORE_CEIL = 65.0, 85.0
+MIN_THRESHOLD_SAMPLES = 20
 
 
 @dataclass
@@ -48,6 +49,9 @@ class Learner:
         saved = store.get("learner_weights")
         if saved:
             self.weights.update({k: float(v) for k, v in saved.items() if k in DEFAULT_WEIGHTS})
+        # data awal yang sedikit pernah bisa menurunkan min_score di bawah default
+        if self.p.min_score < MIN_SCORE_FLOOR:
+            self.p.min_score = MIN_SCORE_FLOOR
         for row in store.open_signals():
             self.open[row["id"]] = OpenSignal(row["id"], row["mint"], row["ts"], row["entry_price"],
                                               row["max_gain_pct"], row["min_gain_pct"])
@@ -98,12 +102,19 @@ class Learner:
 
     # ---------- analisis ----------
 
+    def round_trip_cost_pct(self) -> float:
+        """Fee pump.fun + PumpPortal + slippage, beli dan jual."""
+        p = self.p
+        return 2 * (p.pump_fee_pct + p.platform_fee_pct + p.paper_latency_slippage_pct)
+
     def _payoff(self, outcome: str) -> float:
+        """Perkiraan hasil BERSIH satu sinyal kalau diambil (setelah biaya)."""
+        cost = self.round_trip_cost_pct()
         if outcome == "win":
-            return self.p.learn_win_pct
+            return self.p.learn_win_pct - cost
         if outcome == "loss":
-            return -self.p.stop_loss_pct
-        return -FLAT_COST_PCT
+            return -self.p.stop_loss_pct - cost
+        return -cost
 
     def analyze(self) -> dict:
         rows = self.store.resolved_signals()
@@ -156,21 +167,25 @@ class Learner:
                 self.weights[key] = new
             self.store.put("learner_weights", self.weights)
 
-        # 2. min_score: ambang dengan ekspektasi terbaik (butuh ≥10 sampel di atasnya)
+        # 2. min_score: ambang dengan ekspektasi bersih terbaik (butuh cukup sampel di atasnya)
         best_t, best_e = None, None
         for t in SCORE_THRESHOLDS:
             sel = [r for r in rows if r["score"] >= t]
-            if len(sel) < 10:
+            if len(sel) < MIN_THRESHOLD_SAMPLES:
                 continue
             e = sum(self._payoff(r["outcome"]) for r in sel) / len(sel)
             if best_e is None or e > best_e:
                 best_t, best_e = t, e
         if best_t is not None:
             target = max(MIN_SCORE_FLOOR, min(MIN_SCORE_CEIL, float(best_t)))
+            if best_e <= 0:
+                # belum ada ambang yang untung setelah biaya → paling selektif
+                target = MIN_SCORE_CEIL
             # geser maksimal 5 poin per tuning
             step = max(-5.0, min(5.0, target - self.p.min_score))
             if abs(step) >= 1:
                 old = self.p.min_score
                 self.p.min_score = round(old + step, 1)
-                changes.append(f"min_score: {old:.0f} → {self.p.min_score:.0f} (ekspektasi {best_e:+.1f}% di skor ≥{best_t})")
+                changes.append(f"min_score: {old:.0f} → {self.p.min_score:.0f} "
+                               f"(ekspektasi bersih {best_e:+.1f}% di skor ≥{best_t})")
         return changes

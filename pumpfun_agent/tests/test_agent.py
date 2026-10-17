@@ -377,3 +377,22 @@ def test_telegram_send_failure_does_not_raise():
     ui.app = App()
     run(ui.send("halo"))  # tidak boleh melempar
     assert ui._send_failures == 1
+
+
+def test_learner_counts_costs_and_never_loosens_below_default(tmp_path):
+    """Sinyal skor rendah yang 'impas' sebelum biaya harus dianggap rugi setelah biaya."""
+    agent, _ = _agent(tmp_path, learn_min_samples=20)
+    assert agent.p.min_score >= 65  # dijepit ke floor walau di-set lebih rendah
+    store = agent.store
+    # skor <75: 33% menang (impas sebelum biaya), skor ≥75: 60% menang
+    for i in range(240):
+        sc = 50 + (i % 8) * 5
+        win = (i % 3 == 0) if sc < 75 else (i % 5 < 3)
+        sid = store.add_signal(f"m{i}", i, sc, {k: 0.5 for k in agent.learner.weights}, {}, 1.0, False)
+        store.update_signal(sid, 40 if win else 0, 0 if win else -20, "win" if win else "loss", i + 1)
+    a = agent.learner.analyze()
+    low = [b for b in a["buckets"] if b["range"] == "55-60"][0]
+    assert low["expectancy_pct"] < 0  # setelah biaya, skor rendah rugi
+    for _ in range(4):
+        agent.learner.tune()
+    assert agent.p.min_score >= 75
