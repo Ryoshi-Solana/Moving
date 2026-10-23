@@ -18,6 +18,7 @@ import json
 import logging
 import struct
 import time
+from collections import OrderedDict
 from typing import Awaitable, Callable
 
 log = logging.getLogger(__name__)
@@ -165,16 +166,36 @@ class OnchainTradeFeed:
         self.urls = [u for u in urls if u] or list(DEFAULT_WS_URLS)
         self.handler = handler
         self.watched: set[str] = set()
-        self.connected = False
-        self.current_url = ""
+        # Semua RPC dipakai BERSAMAAN (RPC publik rutin memutus koneksi tiap 1–4 menit);
+        # event yang sama dari dua RPC dibuang lewat signature transaksi.
+        self._live: dict[str, bool] = {}
+        self._seen: "OrderedDict[str, None]" = OrderedDict()
         self.last_message_at = 0.0
         self.last_trade_at = 0.0
         self.reconnects = 0
         self.stats = {"notifikasi": 0, "trade": 0, "create": 0, "dipakai": 0, "MB": 0.0}
         self.create_fallback = None  # callable: true only while PumpPortal is disconnected
         self._stop = asyncio.Event()
-        self._ws = None
         self._record_file = open(record_path, "a", encoding="utf-8", buffering=1) if record_path else None
+
+    @property
+    def connected(self) -> bool:
+        return any(self._live.values())
+
+    @property
+    def current_url(self) -> str:
+        return ",".join(u for u, ok in self._live.items() if ok) or "putus"
+
+    def _is_duplicate(self, signature: str) -> bool:
+        if not signature:
+            return False
+        if signature in self._seen:
+            return True
+        self._seen[signature] = None
+        if len(self._seen) > 200_000:
+            for _ in range(20_000):
+                self._seen.popitem(last=False)
+        return False
 
     async def subscribe_trades(self, mints: list[str]) -> None:
         self.watched.update(mints)
@@ -194,6 +215,8 @@ class OnchainTradeFeed:
         if not value:
             if isinstance(msg, dict) and "error" in msg:
                 log.warning("RPC menolak logsSubscribe: %s", msg["error"])
+            return
+        if self._is_duplicate(value.get("signature", "")):
             return
         self.stats["notifikasi"] += 1
         if value.get("err") is not None:
@@ -224,41 +247,38 @@ class OnchainTradeFeed:
                 log.exception("handler error")
 
     async def run(self) -> None:
+        await asyncio.gather(*(self._worker(url) for url in self.urls))
+
+    async def _worker(self, url: str) -> None:
         import websockets
 
+        name = url.split("?")[0]  # jangan tulis api key ke log
+        self._live[name] = False
         backoff = 1.0
-        idx = 0
         while not self._stop.is_set():
-            url = self.urls[idx % len(self.urls)]
-            self.current_url = url.split("?")[0]
             try:
                 async with websockets.connect(url, ping_interval=20, ping_timeout=20,
                                               max_size=2**22, open_timeout=15) as ws:
-                    self._ws = ws
                     await ws.send(json.dumps({
                         "jsonrpc": "2.0", "id": 1, "method": "logsSubscribe",
                         "params": [{"mentions": [PUMP_PROGRAM]}, {"commitment": "processed"}],
                     }))
-                    self.connected = True
+                    self._live[name] = True
                     backoff = 1.0
-                    log.info("feed on-chain tersambung: %s", self.current_url)
-                    connected_at = time.time()
+                    log.info("feed on-chain tersambung: %s", name)
                     while True:
+                        # RPC kadang diam tanpa menutup koneksi → anggap putus
                         raw = await asyncio.wait_for(ws.recv(), timeout=60)
                         await self._process(raw)
-                        if time.time() - max(self.last_trade_at, connected_at) > 90:
-                            raise RuntimeError("tidak ada trade pump.fun >90 detik")
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
-                log.warning("feed on-chain putus (%s): %s", self.current_url, exc)
+                log.info("feed on-chain putus (%s): %r", name, exc)
             finally:
-                self._ws = None
-                self.connected = False
+                self._live[name] = False
             if self._stop.is_set():
                 break
             self.reconnects += 1
-            idx += 1
             await asyncio.sleep(backoff)
             backoff = min(backoff * 2, 30)
 

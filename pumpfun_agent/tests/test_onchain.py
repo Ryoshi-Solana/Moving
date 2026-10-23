@@ -102,9 +102,13 @@ def test_trades_from_logs_reads_program_data_lines():
     assert base64.b64encode(TRADE_EVENT_DISC).decode().startswith("vdt/007m")
 
 
-def _notification(logs, err=None):
+_sig_counter = iter(range(10**9))
+
+
+def _notification(logs, err=None, signature=None):
+    sig = signature or f"SIG{next(_sig_counter)}"
     return json.dumps({"jsonrpc": "2.0", "method": "logsNotification", "params": {"result": {
-        "context": {"slot": 1}, "value": {"signature": "SIG", "err": err, "logs": logs}}}})
+        "context": {"slot": 1}, "value": {"signature": sig, "err": err, "logs": logs}}}})
 
 
 def test_onchain_feed_only_forwards_watched_mints():
@@ -153,3 +157,23 @@ def test_pumpportal_feed_refuses_paid_api_key():
     with pytest.raises(ValueError):
         PumpPortalFeed("wss://pumpportal.fun/api/data?api-key=abc", handler=None)
     PumpPortalFeed("wss://pumpportal.fun/api/data", handler=None)
+
+
+def test_same_transaction_from_two_rpcs_is_processed_once():
+    got = []
+
+    async def handler(msg, now):
+        got.append(msg)
+
+    async def scenario():
+        feed = OnchainTradeFeed(["wss://a", "wss://b"], handler)
+        await feed.subscribe_trades([str(MINT)])
+        line = "Program data: " + base64.b64encode(trade_event()).decode()
+        note = _notification([line], signature="SAMA")
+        await feed._process(note)   # dari RPC a
+        await feed._process(note)   # transaksi sama dari RPC b
+        return feed
+
+    feed = asyncio.run(scenario())
+    assert len(got) == 1
+    assert feed.connected is False and feed.current_url == "putus"
