@@ -165,7 +165,8 @@ async def run(settings: Settings) -> None:
                          len(agent.market.tokens), len(agent.positions), agent.equity(),
                          "ok" if feed.connected else "putus", feed.msg_types,
                          trades.current_url if trades.connected else "putus",
-                         {k: round(v, 1) for k, v in trades.stats.items()},
+                         {**{k: round(v, 1) for k, v in trades.stats.items()},
+                          "per_rpc": {u.split("//")[-1]: n for u, n in trades.url_msgs.items()}},
                          feed.reconnects, trades.reconnects, agent.rejections.most_common(3))
             await asyncio.sleep(5)
 

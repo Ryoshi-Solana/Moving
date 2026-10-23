@@ -169,6 +169,7 @@ class OnchainTradeFeed:
         # Semua RPC dipakai BERSAMAAN (RPC publik rutin memutus koneksi tiap 1–4 menit);
         # event yang sama dari dua RPC dibuang lewat signature transaksi.
         self._live: dict[str, bool] = {}
+        self.url_msgs: dict[str, int] = {}      # jumlah pesan per RPC (untuk tahu RPC mana yang berguna)
         self._seen: "OrderedDict[str, None]" = OrderedDict()
         self.last_message_at = 0.0
         self.last_trade_at = 0.0
@@ -254,6 +255,7 @@ class OnchainTradeFeed:
 
         name = url.split("?")[0]  # jangan tulis api key ke log
         self._live[name] = False
+        self.url_msgs.setdefault(name, 0)
         backoff = 1.0
         while not self._stop.is_set():
             try:
@@ -269,6 +271,7 @@ class OnchainTradeFeed:
                     while True:
                         # RPC kadang diam tanpa menutup koneksi → anggap putus
                         raw = await asyncio.wait_for(ws.recv(), timeout=60)
+                        self.url_msgs[name] += 1
                         await self._process(raw)
             except asyncio.CancelledError:
                 raise
