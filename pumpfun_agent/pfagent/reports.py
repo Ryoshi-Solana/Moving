@@ -56,7 +56,9 @@ def _fmt_summary(s: dict) -> str:
 def status_text(agent: "Agent", now: float, feed_connected: bool | None = None) -> str:
     r = agent.risk.state
     eq = agent.equity()
-    if r.halted:
+    if not agent.p.trading_enabled:
+        state = "🧪 mode lab — trading dimatikan, PUMPY hanya belajar"
+    elif r.halted:
         state = f"🛑 BERHENTI ({esc(r.halt_reason)}) — /resume untuk lanjut"
     elif r.paused:
         state = "⏸ dijeda"
@@ -190,6 +192,25 @@ def learn_text(agent: "Agent") -> str:
         from .learner import GRID_MIN_SAMPLES
         if g["samples"] < GRID_MIN_SAMPLES:
             lines.append(f"Auto-tune SL/TP aktif setelah {GRID_MIN_SAMPLES} sinyal.")
+    return "\n".join(lines)
+
+
+def lab_text(agent: "Agent", analysis: dict | None = None) -> str:
+    a = analysis or agent.lab.analyze(agent.learner.round_trip_cost_pct())
+    lines = [f"<b>PUMPY · lab strategi</b> (mode bayangan, {a['signals']} sinyal selesai)",
+             f"Hasil bersih setelah biaya ±{agent.learner.round_trip_cost_pct():.1f}% · format: entry | filter | SL/TP"]
+    if not a["results"]:
+        lines.append("Belum cukup data (butuh ≥50 entry per kombinasi; tiap sinyal selesai ±20 menit).")
+        return "\n".join(lines)
+    b = a["baseline_best"]
+    if b:
+        lines.append(f"\nPembanding (beli langsung, semua): terbaik {b['net_pct']:+.1f}% di SL/TP {b['exit']} (n={b['n']})")
+    lines.append("\n<b>Top 10</b>")
+    for r in a["results"][:10]:
+        mark = "✅" if r["robust"] else "·"
+        lines.append(f"{mark} {r['rule']} | {r['filter']} | {r['exit']}: {r['net_pct']:+.1f}% "
+                     f"(n={r['n']}, paruh1 {r['half1']:+.1f} / paruh2 {r['half2']:+.1f})")
+    lines.append(f"\nLolos uji ketahanan (✅ n≥100, untung di kedua paruh, >+2%): {len(a['robust'])}")
     return "\n".join(lines)
 
 

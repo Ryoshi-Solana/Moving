@@ -26,6 +26,7 @@ HELP = """<b>PUMPY · agent trading pump.fun</b>
 /narrative – narrative yang sedang panas
 /kandidat – token yang lagi dipertimbangkan & alasan ditolak
 /belajar – apa yang sudah dipelajari agent
+/lab – hasil uji strategi entry (mode bayangan)
 /params – semua parameter
 /set nama nilai – ubah parameter (mis. /set stop_loss_pct 10)
 /pause – stop buka posisi baru (posisi lama tetap dijaga SL/TP)
@@ -84,6 +85,7 @@ class TelegramUI:
             ("narrative", "narasi"): self.cmd_narrative,
             ("kandidat", "candidates"): self.cmd_candidates,
             ("belajar", "learn"): self.cmd_learn,
+            ("lab",): self.cmd_lab,
             ("params",): self.cmd_params,
             ("set",): self.cmd_set,
             ("pause",): self.cmd_pause,
@@ -154,6 +156,10 @@ class TelegramUI:
 
     async def cmd_learn(self, update, context):
         await self._reply(update, reports.learn_text(self.agent))
+
+    async def cmd_lab(self, update, context):
+        a = await self.agent.lab.analyze_async(self.agent.learner.round_trip_cost_pct())
+        await self._reply(update, reports.lab_text(self.agent, a))
 
     async def cmd_params(self, update, context):
         await self._reply(update, reports.params_text(self.agent))

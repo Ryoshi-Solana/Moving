@@ -485,3 +485,15 @@ def test_buy_alert_has_pumpfun_link(tmp_path):
     buy = next(s for s in sent if "BELI" in s)
     mint = agent.store.closed_positions("paper")[0].mint
     assert f'<a href="https://pump.fun/coin/{mint}">' in buy
+
+
+def test_trading_disabled_keeps_learning_and_lab(tmp_path):
+    agent, sent = _agent(tmp_path, trading_enabled=False)
+    end = run(_play(agent, pump_then("moon")))
+    assert agent.counters["entries"] == 0
+    assert agent.counters["candidates"] > 0
+    run(agent.maintenance(end + 3600))
+    assert agent.store.lab_signals()
+    from pfagent.reports import lab_text, status_text
+    assert "lab" in lab_text(agent).lower()
+    assert "mode lab" in status_text(agent, end, True)

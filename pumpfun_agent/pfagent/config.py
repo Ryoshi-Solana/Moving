@@ -130,6 +130,8 @@ class Params:
     max_drawdown_pct: float = 35.0       # dari puncak equity → agent berhenti total
     reentry_cooldown_minutes: float = 30.0
 
+    trading_enabled: bool = True         # false = hanya belajar & lab, tidak membuka posisi
+
     # --- Filter entry ---
     min_score: float = 65.0
     min_age_sec: float = 45.0

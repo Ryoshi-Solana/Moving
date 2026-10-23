@@ -21,6 +21,7 @@ from typing import Awaitable, Callable, Protocol
 
 from .broker import Fill, OrderError
 from .config import Params, Settings
+from .lab import StrategyLab
 from .learner import Learner
 from .market import Features, MarketTracker, TokenState
 from .narrative import NarrativeTracker
@@ -80,6 +81,8 @@ class Agent:
         self.market = MarketTracker()
         self.narrative = NarrativeTracker()
         self.learner = Learner(store, params)
+        self.lab = StrategyLab(store)
+        self._last_lab_log_at = 0.0
         self.risk = RiskManager.from_dict(params, store.get(f"risk_{self.mode}"))
         self.positions: dict[str, Position] = {p.mint: p for p in store.open_positions(self.mode)}
 
@@ -232,6 +235,7 @@ class Agent:
         if msg.get("txType") == "buy":
             self.narrative.on_buy(tok.mint, float(msg.get("solAmount") or 0), now)
         self.learner.on_price(tok.mint, tok.spot_price(), now)
+        self.lab.on_price(tok.mint, tok.spot_price(), now)
 
         if tok.mint in self.positions:
             await self._manage_position(tok.mint, now)
@@ -262,8 +266,11 @@ class Agent:
         self.counters["candidates"] += 1
 
         ok, why = self.risk.can_open(tok.mint, now, set(self.positions) | self._busy, self.cash)
+        if not self.p.trading_enabled:
+            ok, why = False, "trading dimatikan (mode lab)"
         will_buy = ok and sc >= self.p.min_score
         sid = self.learner.record(tok.mint, now, sc, comps, f.as_dict(), tok.spot_price(), will_buy)
+        self.lab.add(sid, tok.mint, now, tok.spot_price())
 
         self.last_candidates.insert(0, {
             "mint": tok.mint, "symbol": tok.symbol, "score": sc, "narrative": kw,
@@ -462,10 +469,11 @@ class Agent:
             await self._manage_position(mint, now)
 
         self.learner.tick(now)
+        self.lab.tick(now)
         self.narrative.maintenance(now)
         self.risk.prune(now)
 
-        keep = set(self.positions) | {s.mint for s in self.learner.open.values()}
+        keep = set(self.positions) | {s.mint for s in self.learner.open.values()} | self.lab.mints
         removed = self.market.prune(now, keep, max_age_sec=self.p.max_age_minutes * 60 + 600)
         if removed:
             await self.feed.unsubscribe_trades(removed)
@@ -488,6 +496,17 @@ class Agent:
                     await self.close_all("KILL SWITCH", now)
             await self._maybe_daily_report(now)
             self.save_state()
+
+        if now - self._last_lab_log_at >= 3600:
+            self._last_lab_log_at = now
+            try:
+                a = await self.lab.analyze_async(self.learner.round_trip_cost_pct())
+                log.info("PUMPY_LAB %s", json.dumps({
+                    "signals": a["signals"], "baseline": a["baseline_best"],
+                    "top": a["results"][:12], "robust": a["robust"][:12],
+                }, ensure_ascii=False))
+            except Exception:
+                log.exception("lab analyze error")
 
         if now - self._last_tune_at >= self.TUNE_INTERVAL:
             self._last_tune_at = now

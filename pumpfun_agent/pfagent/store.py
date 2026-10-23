@@ -95,7 +95,7 @@ class Store:
         """Tambah kolom baru ke database lama tanpa menghapus data."""
         wanted = {
             "positions": {"entry_spot": "REAL NOT NULL DEFAULT 0"},
-            "signals": {"grid": "TEXT"},
+            "signals": {"grid": "TEXT", "lab": "TEXT"},
         }
         for table, cols in wanted.items():
             have = {r["name"] for r in self.conn.execute(f"PRAGMA table_info({table})")}
@@ -192,6 +192,16 @@ class Store:
     def update_signal_grid(self, sid: int, grid: dict) -> None:
         self.conn.execute("UPDATE signals SET grid=? WHERE id=?", (json.dumps(grid), sid))
         self.conn.commit()
+
+    def update_signal_lab(self, sid: int, lab: dict) -> None:
+        self.conn.execute("UPDATE signals SET lab=? WHERE id=?", (json.dumps(lab), sid))
+        self.conn.commit()
+
+    def lab_signals(self, limit: int = 40000) -> list[sqlite3.Row]:
+        return self.conn.execute(
+            "SELECT ts, score, features, lab FROM signals WHERE lab IS NOT NULL ORDER BY ts DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
 
     def grid_signals(self, min_score: float, limit: int = 3000) -> list[sqlite3.Row]:
         return self.conn.execute(
