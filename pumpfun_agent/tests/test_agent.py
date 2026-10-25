@@ -497,3 +497,34 @@ def test_trading_disabled_keeps_learning_and_lab(tmp_path):
     from pfagent.reports import lab_text, status_text
     assert "lab" in lab_text(agent).lower()
     assert "mode lab" in status_text(agent, end, True)
+
+
+def test_entry_on_first_signal_only_matches_lab(tmp_path):
+    # min_score sangat tinggi dulu → sinyal pertama tercatat tanpa beli
+    agent, _ = _agent(tmp_path, entry_on_first_signal_only=True)
+    agent.p.min_score = 99
+    events = pump_then("moon")
+    run(agent.start(events[0][0]))
+    for t, msg in events[:60]:
+        run(agent.on_message(msg, t))
+    assert agent.counters["candidates"] > 0 and agent.counters["entries"] == 0
+    agent.p.min_score = 45  # skor sekarang cukup, tapi ini bukan sinyal pertama token itu
+    for t, msg in events[60:120]:
+        run(agent.on_message(msg, t))
+    assert agent.counters["entries"] == 0
+
+
+SEASON3 = "min_score=65,auto_tune=false,stop_loss_pct=10,tp1_pct=100,tp1_sell_fraction=1,trailing_activate_pct=1000,breakeven_after_pct=1000,stale_minutes=1000,max_hold_minutes=15,exit_on_dev_sell=false,exit_sell_pressure_ratio=0,entry_on_first_signal_only=true,fixed_position_sol=0.1,trading_enabled=true"
+
+
+def test_season3_params_reproduce_lab_exit_rules():
+    p = Params()
+    for part in SEASON3.split(","):
+        k, v = part.split("=")
+        p.set(k, v)
+    f = Features(dev_sold_pct=90, buy_ratio_1m=0.05, sell_vol_1m=10)  # tidak boleh memicu exit
+    assert evaluate_exit(_pos(peak_price=1.5), 1.45, f, 60, p) is None          # tanpa trailing/breakeven
+    assert "STOP LOSS" in evaluate_exit(_pos(), 0.899, f, 60, p).reason        # SL -10% dari harga pasar
+    d = evaluate_exit(_pos(peak_price=2.0), 2.0, f, 60, p)
+    assert d.fraction == 1.0 and "TP1" in d.reason                             # TP +100% jual semua
+    assert "WAKTU HABIS" in evaluate_exit(_pos(peak_price=1.3), 1.2, f, 15 * 60, p).reason

@@ -268,9 +268,13 @@ class Agent:
         ok, why = self.risk.can_open(tok.mint, now, set(self.positions) | self._busy, self.cash)
         if not self.p.trading_enabled:
             ok, why = False, "trading dimatikan (mode lab)"
-        will_buy = ok and sc >= self.p.min_score
-        sid = self.learner.record(tok.mint, now, sc, comps, f.as_dict(), tok.spot_price(), will_buy)
+        sid = self.learner.record(tok.mint, now, sc, comps, f.as_dict(), tok.spot_price(), False)
         self.lab.add(sid, tok.mint, now, tok.spot_price())
+        if ok and self.p.entry_on_first_signal_only and sid is None:
+            # lab mengukur sinyal pertama tiap token (per 10 menit); entry ulang di evaluasi
+            # berikutnya adalah perilaku lain yang belum terbukti
+            ok, why = False, "bukan sinyal pertama"
+        will_buy = ok and sc >= self.p.min_score
 
         self.last_candidates.insert(0, {
             "mint": tok.mint, "symbol": tok.symbol, "score": sc, "narrative": kw,

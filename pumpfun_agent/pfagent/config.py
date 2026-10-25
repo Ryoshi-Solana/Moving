@@ -131,6 +131,7 @@ class Params:
     reentry_cooldown_minutes: float = 30.0
 
     trading_enabled: bool = True         # false = hanya belajar & lab, tidak membuka posisi
+    entry_on_first_signal_only: bool = False  # true = hanya beli di sinyal PERTAMA token (sama seperti lab)
 
     # --- Filter entry ---
     min_score: float = 65.0
