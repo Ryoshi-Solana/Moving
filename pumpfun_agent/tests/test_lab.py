@@ -28,11 +28,12 @@ def test_dump_then_recovery_rewards_pullback_entry(tmp_path):
     row = store.lab_signals()[0]
     import json
     res = json.loads(row["lab"])
+    assert res.pop("_v") == 2
     assert set(res) == set(ENTRY_RULES)
-    assert res["langsung"]["cells"]["15/50"] == -15.0           # beli langsung kena SL
+    assert res["langsung"]["cells"]["15/50"] == -20.0           # SL 15 tersentuh saat harga sudah -20% (gap)
     assert res["tunda30"]["in"] is False                         # 30 dtk: harga sudah turun >5% → skip
     assert res["pullback15"]["in"] is True                       # masuk di 0.8 setelah turun dari 1.0
-    assert res["pullback15"]["cells"]["30/50"] == 50.0           # 0.8 → 1.4 = +75% → TP 50 kena
+    assert res["pullback15"]["cells"]["30/50"] == 75.0           # 0.8 → 1.4: TP 50 tersentuh di +75% (gap naik)
     assert res["tunda60"]["in"] is True                          # di 70 dtk harga 1.0 (tidak turun) → masuk
 
 
@@ -53,3 +54,22 @@ def test_analysis_flags_only_consistently_profitable_rules(tmp_path):
     assert ("pullback15", "30/100") in robust or ("pullback25", "30/100") in robust
     assert not any(r["rule"] == "langsung" and r["exit"].startswith(("10/", "15/", "20/")) for r in a["robust"])
     assert a["baseline_best"] is not None
+
+
+
+def test_confirm_entry_and_old_lab_rows_ignored(tmp_path):
+    import json
+    store = Store(str(tmp_path / "l.db"))
+    lab = StrategyLab(store)
+    _signal(store, lab, "A", 0.0)
+    for t, p in [(30, 1.05), (61, 1.15), (300, 1.5)]:
+        lab.on_price("A", p, t)
+    lab.tick(5000)
+    res = json.loads(store.lab_signals()[0]["lab"])
+    assert res["lanjut60"]["in"] is True                         # 60 dtk: +15% ≥ +10% → masuk
+    # baris lab versi lama (tanpa _v) tidak ikut dianalisis
+    sid = store.add_signal("OLD", 1.0, 80, {}, {}, 1.0, False)
+    store.update_signal_lab(sid, {"langsung": {"in": True, "cells": {"10/25": 25.0}}})
+    from pfagent.lab import analyze_rows
+    a = analyze_rows(lab.fetch(), 7.5, min_n=1)
+    assert a["signals"] == 1

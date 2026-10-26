@@ -24,6 +24,11 @@ from typing import Callable
 
 from .store import Store
 
+# v2: SL/TP dicatat di harga SAAT tersentuh (bukan dijepit di level SL/TP). Di pump.fun
+# harga sering melompat melewati SL (-30% s/d -65%); v1 mengabaikan itu sehingga hasil
+# lab terlalu optimis. Data v1 tidak dipakai lagi dalam analisis.
+LAB_VERSION = 2
+
 ENTRY_RULES: dict[str, dict] = {
     "langsung": {"kind": "now"},
     "tunda30": {"kind": "delay", "sec": 30, "max_drop": 5},
@@ -31,6 +36,7 @@ ENTRY_RULES: dict[str, dict] = {
     "tunda120": {"kind": "delay", "sec": 120, "max_drop": 5},
     "pullback15": {"kind": "pullback", "pct": 15, "window": 300},
     "pullback25": {"kind": "pullback", "pct": 25, "window": 300},
+    "lanjut60": {"kind": "confirm", "sec": 60, "min_gain": 10},  # 60 dtk kemudian harga sudah naik ≥10%
 }
 EXIT_SL = (10, 15, 20, 30)
 EXIT_TP = (25, 50, 100)
@@ -46,6 +52,10 @@ FILTERS: dict[str, Callable[[float, dict], bool]] = {
     "mcap≥80": lambda s, f: f.get("mcap_sol", 0) >= 80,
     "buyers≥40": lambda s, f: f.get("unique_buyers_5m", 0) >= 40,
     "tdk-vertikal+umur≥3m": lambda s, f: f.get("mcap_change_1m_pct", 0) < 50 and f.get("age_sec", 0) >= 180,
+    "buyratio≥0.8": lambda s, f: f.get("buy_ratio_1m", 0) >= 0.8,
+    "naik1m<30": lambda s, f: f.get("mcap_change_1m_pct", 0) < 30,
+    "skor≥65+buyratio≥0.8": lambda s, f: s >= 65 and f.get("buy_ratio_1m", 0) >= 0.8,
+    "umur≥3m+buyers≥40": lambda s, f: f.get("age_sec", 0) >= 180 and f.get("unique_buyers_5m", 0) >= 40,
 }
 
 
@@ -71,11 +81,9 @@ class _Entry:
         for s in EXIT_SL:
             for t in EXIT_TP:
                 k = cell(s, t)
-                if self.cells[k] is None:
-                    if gain <= -s:
-                        self.cells[k] = -float(s)
-                    elif gain >= t:
-                        self.cells[k] = float(t)
+                if self.cells[k] is None and (gain <= -s or gain >= t):
+                    # keluar di harga yang benar-benar ada saat level tersentuh (termasuk gap)
+                    self.cells[k] = round(gain, 2)
         if now - self.t >= HOLD_SEC or all(v is not None for v in self.cells.values()):
             self.finish()
 
@@ -130,7 +138,13 @@ class StrategyLab:
 
     def _try_enter(self, sig: _Signal, e: _Entry, price: float, now: float) -> None:
         rule = ENTRY_RULES[e.rule]
-        if rule["kind"] == "delay":
+        if rule["kind"] == "confirm":
+            if now - sig.t0 >= rule["sec"]:
+                if price >= sig.p0 * (1 + rule["min_gain"] / 100):
+                    e.open(price, now)
+                else:
+                    e.state = "skip"
+        elif rule["kind"] == "delay":
             if now - sig.t0 >= rule["sec"]:
                 if price >= sig.p0 * (1 - rule["max_drop"] / 100):
                     e.open(price, now)
@@ -149,16 +163,18 @@ class StrategyLab:
                 for e in sig.entries.values():
                     if e.state == "waiting":
                         rule = ENTRY_RULES[e.rule]
-                        limit = rule.get("sec", 0) + 60 if rule["kind"] == "delay" else rule.get("window", 0)
+                        limit = rule.get("sec", 0) + 60 if rule["kind"] in ("delay", "confirm") else rule.get("window", 0)
                         if now - sig.t0 > limit:
                             e.state = "skip"  # tidak ada trade = token mati, tidak bisa masuk
                     elif e.state == "open" and now - e.t >= HOLD_SEC:
                         e.finish()
                 if all(e.state in ("done", "skip") for e in sig.entries.values()):
-                    self.store.update_signal_lab(sig.sid, {
+                    result = {
                         name: {"in": e.state == "done", "cells": e.cells if e.state == "done" else None}
                         for name, e in sig.entries.items()
-                    })
+                    }
+                    result["_v"] = LAB_VERSION
+                    self.store.update_signal_lab(sig.sid, result)
                 else:
                     keep.append(sig)
             if keep:
@@ -187,8 +203,11 @@ def analyze_rows(rows: list[tuple], cost_pct: float, min_n: int = 50) -> dict:
     parsed = []
     for _ts, score, features, lab in rows:
         try:
-            parsed.append((score, json.loads(features or "{}"), json.loads(lab)))
-        except (TypeError, ValueError):
+            res = json.loads(lab)
+            if res.pop("_v", 1) != LAB_VERSION:
+                continue  # data lama dengan SL/TP dijepit — terlalu optimis
+            parsed.append((score, json.loads(features or "{}"), res))
+        except (TypeError, ValueError, AttributeError):
             continue
     half = len(parsed) // 2
     # akumulasi: (rule, filter, cell) -> [n, sum, n1, sum1, n2, sum2]
